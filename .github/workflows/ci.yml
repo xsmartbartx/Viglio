@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.11
+      - run: uv sync --all-packages
+      - run: uv run ruff check .
+
+  test:
+    name: Unit and contract tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.11
+      - run: uv sync --all-packages
+      - run: uv run pytest -q
+
+  # docs/prooflight-vision-and-architecture.md §18.3: "Attempts against
+  # loopback, private ranges, metadata endpoints, rebinding sequences and
+  # redirect chains into internal space. Any pass is a build-blocking
+  # failure. Run on every commit, not nightly." Split into its own job so
+  # this specific gate is visible independent of the rest of the test suite.
+  egress-guard-suite:
+    name: Egress guard suite (SSRF defense — build blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.11
+      - run: uv sync --all-packages
+      - run: uv run pytest packages/security/tests/test_egress_guard.py -v
