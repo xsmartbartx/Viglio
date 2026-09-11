@@ -1,0 +1,68 @@
+name: vigilo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vigilo
+      POSTGRES_PASSWORD: vigilo-dev-secret
+      POSTGRES_DB: vigilo
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - vigilo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vigilo -d vigilo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - vigilo_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: vigilo
+      MINIO_ROOT_PASSWORD: vigilo-dev-secret
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - vigilo_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 vigilo vigilo-dev-secret &&
+      mc mb -p local/vigilo-evidence &&
+      exit 0
+      "
+
+volumes:
+  vigilo_postgres_data:
+  vigilo_redis_data:
+  vigilo_minio_data:
