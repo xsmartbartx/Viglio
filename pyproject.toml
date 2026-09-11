@@ -1,0 +1,30 @@
+[project]
+name = "vigilo-workspace"
+version = "0.0.0"
+description = "Vigilo monorepo workspace root — not published"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv.workspace]
+members = ["packages/*", "apps/*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["packages/core/src", "packages/security/src", "apps/api/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "packages/core/tests",
+    "packages/security/tests",
+    "apps/api/tests",
+]
