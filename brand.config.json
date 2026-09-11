@@ -1,0 +1,35 @@
+{
+  "$schema": "./docs/schemas/brand.schema.json",
+  "brand": {
+    "name": "Vigilo",
+    "legalName": "Vigilo",
+    "slug": "vigilo",
+    "domain": "vigilo.io",
+    "tagline": "Ship it before it ships you.",
+    "shortDescription": "Live security and compliance scanning for AI-generated web apps.",
+    "supportEmail": "support@vigilo.io",
+    "abuseEmail": "abuse@vigilo.io",
+    "securityEmail": "security@vigilo.io"
+  },
+  "namespaces": {
+    "pythonPackage": "vigilo",
+    "npmScope": "@vigilo",
+    "cliBinary": "vigilo",
+    "mcpServer": "vigilo-mcp",
+    "userAgent": "VigiloScanner/1.0 (+https://vigilo.io/scanner)",
+    "dnsVerificationKey": "vigilo-site-verification",
+    "wellKnownPath": "/.well-known/vigilo-verification.txt",
+    "badgePath": "/badge/{public_id}.svg"
+  },
+  "theme": {
+    "colorPrimary": "#0F172A",
+    "colorAccent": "#22D3EE",
+    "colorCritical": "#DC2626",
+    "colorHigh": "#EA580C",
+    "colorMedium": "#CA8A04",
+    "colorLow": "#0891B2",
+    "colorPass": "#16A34A",
+    "fontSans": "Inter",
+    "fontMono": "JetBrains Mono"
+  }
+}
