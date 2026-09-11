@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: vigilo-dev-secret
       POSTGRES_DB: vigilo
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - vigilo_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - vigilo_redis_data:/data
     healthcheck:
@@ -39,8 +39,8 @@ services:
       MINIO_ROOT_USER: vigilo
       MINIO_ROOT_PASSWORD: vigilo-dev-secret
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
+      - "127.0.0.1:9010:9000"
+      - "127.0.0.1:9011:9001"
     volumes:
       - vigilo_minio_data:/data
     healthcheck:
