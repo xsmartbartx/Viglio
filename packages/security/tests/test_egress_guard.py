@@ -6,6 +6,7 @@ file — every case uses a fake resolver.
 """
 
 import pytest
+
 from vigilo_core.validation import ValidationError
 from vigilo_security.egress_guard import (
     DeniedReason,

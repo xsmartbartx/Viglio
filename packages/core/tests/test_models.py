@@ -1,5 +1,6 @@
 import pytest
 from pydantic import ValidationError as PydanticValidationError
+
 from vigilo_core.models import (
     CheckManifest,
     Confidence,

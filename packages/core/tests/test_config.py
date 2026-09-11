@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from vigilo_core.config import config
 from vigilo_core.errors import StructuredError
 

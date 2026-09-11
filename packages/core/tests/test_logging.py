@@ -4,7 +4,14 @@ from vigilo_core.logging import LogEvent, Severity, log
 
 
 def test_log_emits_json_line_to_stdout(capsys):
-    log(LogEvent(event="scan.requested", severity=Severity.INFO, module="project", context={"target_id": "t_1"}))
+    log(
+        LogEvent(
+            event="scan.requested",
+            severity=Severity.INFO,
+            module="project",
+            context={"target_id": "t_1"},
+        )
+    )
 
     out = capsys.readouterr().out.strip()
     record = json.loads(out)

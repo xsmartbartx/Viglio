@@ -1,6 +1,7 @@
 import hashlib
 
 import pytest
+
 from vigilo_core.redact import Fingerprint, redact
 
 

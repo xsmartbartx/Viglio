@@ -1,5 +1,6 @@
 import pytest
 from pydantic import BaseModel
+
 from vigilo_core.errors import ErrorCode
 from vigilo_core.validation import ValidationError, validate, validate_target_url
 
