@@ -137,15 +137,39 @@ See `docs/security.md` and ADR 0003.
 ## Getting started
 
 1. Read `docs/vision.md` — what is being built and for whom.
-2. Read `docs/architecture.md` and ADR 0002 — the shape and the stack.
-3. Read `docs/scan-engine.md` — the core domain model.
-4. Follow `docs/build-roadmap.md` — six phases, each independently shippable.
+2. Read `docs/architecture.md` and `docs/adr/ADR-0002-product-scope-and-stack.md` — the shape and the stack.
+3. Read `docs/modules.md` — the module contracts each package implements.
+4. Follow `docs/build-roadmap.md` — phase by phase, each independently demonstrable.
+
+---
+
+## Local development
+
+Requires [`uv`](https://docs.astral.sh/uv/), Docker, and Docker Compose. No third-party
+accounts are needed for Phase 0 — everything runs locally.
+
+```bash
+cp .env.example .env
+uv sync --all-packages          # installs packages/core, packages/security, apps/api into one .venv
+docker compose up -d            # postgres, redis, minio — bound to localhost only
+uv run pytest -q                # full test suite, including the egress-guard build-blocking suite
+uv run ruff check .
+uv run uvicorn vigilo_api.main:app --reload --app-dir apps/api/src
+```
+
+Then `curl http://localhost:8000/healthz` and `curl http://localhost:8000/version`.
+
+Stop the local infra with `docker compose down` when done.
 
 ---
 
 ## Status
 
-Design phase. No code committed yet. All documents in `/docs` are authoritative for
+**Phase 0 (Foundations) in progress.** `packages/core` (domain models, validation,
+logging, errors, redaction, config) and `packages/security`'s egress guard (SSRF /
+DNS-rebinding defense) are implemented and tested; `apps/api` is a health/version
+bootstrap only. No scanning logic, no persistence, no frontend yet — see
+`docs/build-roadmap.md` for what's next. All documents in `/docs` are authoritative for
 implementation and must be updated by the responsible agent whenever behaviour changes.
 
 ## Licence
