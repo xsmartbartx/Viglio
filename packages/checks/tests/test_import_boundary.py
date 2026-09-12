@@ -13,11 +13,7 @@ from pathlib import Path
 
 _SRC_ROOT = Path(__file__).resolve().parents[1] / "src" / "vigilo_checks"
 _ALLOWED_PACKAGE_PREFIXES = ("vigilo_core", "vigilo_checks")
-
-if sys.version_info >= (3, 10):
-    _STDLIB_NAMES = sys.stdlib_module_names
-else:  # pragma: no cover - project requires >=3.11
-    raise RuntimeError("test requires Python 3.10+ for sys.stdlib_module_names")
+_STDLIB_NAMES = sys.stdlib_module_names  # available unconditionally: project requires >=3.11
 
 
 def _top_level_module(name: str) -> str:
