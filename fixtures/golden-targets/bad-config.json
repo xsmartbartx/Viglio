@@ -1,0 +1,35 @@
+{
+  "bundle_id": "fixture-bad-0001",
+  "target_origin": "http://bad.example",
+  "captured_at": "2026-01-01T00:00:00Z",
+  "http": {
+    "url": "http://bad.example/",
+    "status_code": 200,
+    "headers": {
+      "server": "Apache/2.4.41 (Ubuntu)",
+      "x-powered-by": "PHP/7.2.24"
+    },
+    "cookies": [],
+    "redirect_chain": [],
+    "body_excerpt": "<html><body>Bad config fixture</body></html>",
+    "body_size": 44,
+    "content_type": null,
+    "elapsed_ms": 340.0
+  },
+  "tls": {
+    "attempted": true,
+    "verified": true,
+    "verify_error": null,
+    "protocol_version": "TLSv1",
+    "cipher_name": "TLS_RSA_WITH_RC4_128_SHA",
+    "cert_subject": "CN=bad.example",
+    "cert_issuer": "CN=Fixture CA",
+    "not_before": "2020-01-01T00:00:00Z",
+    "not_after": "2021-06-01T00:00:00Z",
+    "days_until_expiry": -1660
+  },
+  "fingerprint": {
+    "hosting_signals": [],
+    "framework_signals": []
+  }
+}

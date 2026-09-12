@@ -1,0 +1,42 @@
+{
+  "bundle_id": "fixture-good-0001",
+  "target_origin": "https://good.example",
+  "captured_at": "2026-01-01T00:00:00Z",
+  "http": {
+    "url": "https://good.example/",
+    "status_code": 200,
+    "headers": {
+      "strict-transport-security": "max-age=63072000; includeSubDomains",
+      "content-security-policy": "default-src 'self'; script-src 'self'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "camera=(), microphone=(), geolocation=()",
+      "content-type": "text/html; charset=utf-8"
+    },
+    "cookies": [
+      { "name": "session", "secure": true, "http_only": true, "same_site": "Lax" }
+    ],
+    "redirect_chain": [],
+    "body_excerpt": "<html><body>Good config fixture</body></html>",
+    "body_size": 45,
+    "content_type": "text/html; charset=utf-8",
+    "elapsed_ms": 120.0
+  },
+  "tls": {
+    "attempted": true,
+    "verified": true,
+    "verify_error": null,
+    "protocol_version": "TLSv1.3",
+    "cipher_name": "TLS_AES_256_GCM_SHA384",
+    "cert_subject": "CN=good.example",
+    "cert_issuer": "CN=Fixture CA",
+    "not_before": "2099-01-01T00:00:00Z",
+    "not_after": "2099-06-01T00:00:00Z",
+    "days_until_expiry": 9999
+  },
+  "fingerprint": {
+    "hosting_signals": [],
+    "framework_signals": []
+  }
+}
