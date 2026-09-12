@@ -39,8 +39,8 @@ def test_no_findings_scores_100_grade_a():
 
 
 def test_a_single_confirmed_critical_failure_deducts_full_weight():
-    manifests = {"VG-X-001": _manifest("VG-X-001", weight=10)}
-    findings = [_finding("VG-X-001", Verdict.FAILED, Severity.CRITICAL, Confidence.CONFIRMED)]
+    manifests = {"VG-XXX-001": _manifest("VG-XXX-001", weight=10)}
+    findings = [_finding("VG-XXX-001", Verdict.FAILED, Severity.CRITICAL, Confidence.CONFIRMED)]
 
     result = score(findings, manifests, "0.1")
 
@@ -50,8 +50,8 @@ def test_a_single_confirmed_critical_failure_deducts_full_weight():
 
 
 def test_indicated_confidence_halves_the_deduction():
-    manifests = {"VG-X-001": _manifest("VG-X-001", weight=10)}
-    findings = [_finding("VG-X-001", Verdict.FAILED, Severity.CRITICAL, Confidence.INDICATED)]
+    manifests = {"VG-XXX-001": _manifest("VG-XXX-001", weight=10)}
+    findings = [_finding("VG-XXX-001", Verdict.FAILED, Severity.CRITICAL, Confidence.INDICATED)]
 
     result = score(findings, manifests, "0.1")
 
@@ -59,27 +59,27 @@ def test_indicated_confidence_halves_the_deduction():
 
 
 def test_passed_and_inconclusive_findings_never_affect_the_score():
-    manifests = {"VG-X-001": _manifest("VG-X-001", weight=10)}
+    manifests = {"VG-XXX-001": _manifest("VG-XXX-001", weight=10)}
     findings = [
-        _finding("VG-X-001", Verdict.PASSED, Severity.CRITICAL, Confidence.CONFIRMED),
+        _finding("VG-XXX-001", Verdict.PASSED, Severity.CRITICAL, Confidence.CONFIRMED),
     ]
     assert score(findings, manifests, "0.1").value == 100.0
 
     findings = [
-        _finding("VG-X-001", Verdict.INCONCLUSIVE, Severity.CRITICAL, Confidence.CONFIRMED),
+        _finding("VG-XXX-001", Verdict.INCONCLUSIVE, Severity.CRITICAL, Confidence.CONFIRMED),
     ]
     assert score(findings, manifests, "0.1").value == 100.0
 
     findings = [
-        _finding("VG-X-001", Verdict.NOT_APPLICABLE, Severity.CRITICAL, Confidence.CONFIRMED),
+        _finding("VG-XXX-001", Verdict.NOT_APPLICABLE, Severity.CRITICAL, Confidence.CONFIRMED),
     ]
     assert score(findings, manifests, "0.1").value == 100.0
 
 
 def test_score_clamps_at_zero_when_deductions_exceed_100():
-    manifests = {f"VG-X-{i:03d}": _manifest(f"VG-X-{i:03d}", weight=20) for i in range(10)}
+    manifests = {f"VG-XXX-{i:03d}": _manifest(f"VG-XXX-{i:03d}", weight=20) for i in range(10)}
     findings = [
-        _finding(f"VG-X-{i:03d}", Verdict.FAILED, Severity.CRITICAL, Confidence.CONFIRMED)
+        _finding(f"VG-XXX-{i:03d}", Verdict.FAILED, Severity.CRITICAL, Confidence.CONFIRMED)
         for i in range(10)
     ]
 
@@ -90,8 +90,8 @@ def test_score_clamps_at_zero_when_deductions_exceed_100():
 
 def test_grade_bands():
     def _score_for_deduction(deduction: float):
-        m = {"VG-X-001": _manifest("VG-X-001", weight=deduction)}
-        f = [_finding("VG-X-001", Verdict.FAILED, Severity.CRITICAL, Confidence.CONFIRMED)]
+        m = {"VG-XXX-001": _manifest("VG-XXX-001", weight=deduction)}
+        f = [_finding("VG-XXX-001", Verdict.FAILED, Severity.CRITICAL, Confidence.CONFIRMED)]
         return score(f, m, "0.1")
 
     assert _score_for_deduction(5).grade == "A"  # 95
@@ -102,8 +102,8 @@ def test_grade_bands():
 
 
 def test_score_is_pure_and_deterministic():
-    manifests = {"VG-X-001": _manifest("VG-X-001", weight=7)}
-    findings = [_finding("VG-X-001", Verdict.FAILED, Severity.MEDIUM, Confidence.CONFIRMED)]
+    manifests = {"VG-XXX-001": _manifest("VG-XXX-001", weight=7)}
+    findings = [_finding("VG-XXX-001", Verdict.FAILED, Severity.MEDIUM, Confidence.CONFIRMED)]
 
     result_a = score(findings, manifests, "0.1")
     result_b = score(findings, manifests, "0.1")
