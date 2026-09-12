@@ -78,9 +78,22 @@ async def run_http(url: str, resolver: Resolver | None = None) -> HttpObservatio
             ) as response:
                 if response.is_redirect:
                     location = response.headers.get("location")
-                    await response.aclose()
                     if not location:
-                        break
+                        # Malformed redirect (3xx with no Location) — hostile or
+                        # broken input either way. Record it as-is rather than
+                        # crashing the probe over it.
+                        headers = {k.lower(): v for k, v in response.headers.items()}
+                        cookies = _parse_set_cookie_headers(response.headers.get_list("set-cookie"))
+                        await response.aclose()
+                        return HttpObservation(
+                            url=f"{conn.origin}/",
+                            status_code=response.status_code,
+                            headers=headers,
+                            cookies=cookies,
+                            redirect_chain=redirect_chain,
+                            elapsed_ms=(time.monotonic() - start) * 1000,
+                        )
+                    await response.aclose()
                     redirect_chain.append(conn.origin)
                     if hop == _MAX_REDIRECTS:
                         raise TooManyRedirects(f"exceeded {_MAX_REDIRECTS} redirects from {url}")
