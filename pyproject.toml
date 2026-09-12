@@ -37,6 +37,11 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 # readability more than the line-length limit helps here.
 "packages/checks/src/vigilo_checks/hdr.py" = ["E501"]
 "packages/checks/src/vigilo_checks/tls.py" = ["E501"]
+# Per-check fixture tests are one assertion per line by design (readability
+# over strict wrapping) — same rationale as the manifests above.
+"packages/checks/tests/test_hdr.py" = ["E501"]
+"packages/checks/tests/test_tls.py" = ["E501"]
+"packages/checks/tests/test_registry.py" = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
