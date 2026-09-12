@@ -8,6 +8,7 @@ import ssl
 import threading
 
 import pytest
+
 from vigilo_probes.tls_probe import run_tls
 
 

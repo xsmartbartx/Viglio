@@ -6,6 +6,7 @@ in-process.
 
 import httpx
 import pytest
+
 from vigilo_probes.http_probe import TooManyRedirects, run_http
 from vigilo_security.exceptions import EgressDenied
 
@@ -100,4 +101,6 @@ async def test_run_http_handles_redirect_without_location_gracefully():
 
 async def test_redirect_into_internal_space_is_denied():
     with pytest.raises(EgressDenied):
-        await run_http("https://internal-redirect.test", resolver=_fake_resolver, transport=_client())
+        await run_http(
+            "https://internal-redirect.test", resolver=_fake_resolver, transport=_client()
+        )
