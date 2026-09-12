@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import time
 from http.cookies import SimpleCookie
+from urllib.parse import urljoin
 
 import httpx
 from vigilo_core.evidence import CookieObservation, HttpObservation
@@ -60,14 +61,23 @@ def _parse_set_cookie_headers(raw_headers: list[str]) -> list[CookieObservation]
     return cookies
 
 
-async def run_http(url: str, resolver: Resolver | None = None) -> HttpObservation:
+async def run_http(
+    url: str,
+    resolver: Resolver | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> HttpObservation:
     """Probe `url`, following redirects manually (revalidating each hop
-    against the egress guard) up to `_MAX_REDIRECTS` hops."""
+    against the egress guard) up to `_MAX_REDIRECTS` hops.
+
+    `transport` is exposed purely for testing — pass an `httpx.MockTransport`
+    to exercise this function with zero real sockets. Production callers
+    never pass it; the default is a real network transport.
+    """
     conn = validate_and_pin(url, resolver=resolver)
     redirect_chain: list[str] = []
     start = time.monotonic()
 
-    async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, transport=transport) as client:
         for hop in range(_MAX_REDIRECTS + 1):
             request_url = _build_request_url(conn)
             async with client.stream(
@@ -97,7 +107,7 @@ async def run_http(url: str, resolver: Resolver | None = None) -> HttpObservatio
                     redirect_chain.append(conn.origin)
                     if hop == _MAX_REDIRECTS:
                         raise TooManyRedirects(f"exceeded {_MAX_REDIRECTS} redirects from {url}")
-                    next_url = str(httpx.URL(location, base=f"{conn.origin}/"))
+                    next_url = urljoin(f"{conn.origin}/", location)
                     conn = revalidate_redirect(next_url, resolver=resolver)
                     continue
 
