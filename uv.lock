@@ -8,6 +8,7 @@ members = [
     "vigilo-checks",
     "vigilo-core",
     "vigilo-probes",
+    "vigilo-scoring",
     "vigilo-security",
     "vigilo-workspace",
 ]
@@ -781,6 +782,17 @@ dev = [
     { name = "cryptography", specifier = ">=43" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
 ]
+
+[[package]]
+name = "vigilo-scoring"
+version = "0.1.0"
+source = { editable = "packages/scoring" }
+dependencies = [
+    { name = "vigilo-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "vigilo-core", editable = "packages/core" }]
 
 [[package]]
 name = "vigilo-security"
