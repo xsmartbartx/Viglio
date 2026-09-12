@@ -150,10 +150,11 @@ accounts are needed for Phase 0 — everything runs locally.
 
 ```bash
 cp .env.example .env
-uv sync --all-packages          # installs packages/core, packages/security, apps/api into one .venv
+uv sync --all-packages          # installs every package/app into one .venv
 docker compose up -d            # postgres, redis, minio — bound to localhost only
 uv run pytest -q                # full test suite, including the egress-guard build-blocking suite
 uv run ruff check .
+uv run vigilo scan https://example.com     # a real, live scan end to end
 uv run uvicorn vigilo_api.main:app --reload --app-dir apps/api/src
 ```
 
@@ -165,12 +166,15 @@ Stop the local infra with `docker compose down` when done.
 
 ## Status
 
-**Phase 0 (Foundations) in progress.** `packages/core` (domain models, validation,
-logging, errors, redaction, config) and `packages/security`'s egress guard (SSRF /
-DNS-rebinding defense) are implemented and tested; `apps/api` is a health/version
-bootstrap only. No scanning logic, no persistence, no frontend yet — see
-`docs/build-roadmap.md` for what's next. All documents in `/docs` are authoritative for
-implementation and must be updated by the responsible agent whenever behaviour changes.
+**Phase 1 (Engine core) complete.** `packages/core` (domain models, evidence types,
+validation, logging, errors, redaction, config), `packages/security`'s egress guard,
+`packages/probes` (pinned HTTP/TLS collection), `packages/checks` (20 `HDR`/`TLS`
+checks), `packages/scoring` (deterministic scoring) and `apps/cli` (`vigilo scan
+<url>`) are implemented and tested — a real scan of a live target works end to end.
+`apps/api` is still a health/version bootstrap only. No persistence, no frontend, no
+billing yet — see `docs/build-roadmap.md` for what's next. All documents in `/docs`
+are authoritative for implementation and must be updated by the responsible agent
+whenever behaviour changes.
 
 ## Licence
 

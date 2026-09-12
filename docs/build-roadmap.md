@@ -24,21 +24,23 @@ accounts required.
 loopback, private-range, cloud-metadata, CGNAT, multicast, reserved and
 IPv4-mapped-IPv6 targets, without making a single real network request.
 
-## Phase 1 — Engine core
+## Phase 1 — Engine core ✅
 
 Target-URL validation wired into a real probe layer (`packages/probes`);
 `httpx`-based HTTP client that connects to the egress guard's pinned IP,
 never re-resolving; fingerprinting (framework/hosting/database-backend
-detection from response signatures); probe planner; the check layer
-(`packages/checks`) as pure functions plus manifests; scoring v1
+detection from response signatures); the check layer (`packages/checks`) as
+pure functions plus manifests, 20 `HDR`/`TLS` checks; scoring v1
 (`packages/scoring`, deterministic, per the algorithm in
-`docs/prooflight-vision-and-architecture.md` §7.3); ~20 `HDR`/`TLS` checks;
-evidence capture and redaction on the way into storage. CLI-invoked only, no
-web layer, no persistence beyond local fixture replay.
+`docs/prooflight-vision-and-architecture.md` §7.3); a CLI (`apps/cli`, `vigilo
+scan <url>`); local evidence storage (`LocalFileEvidenceStore`). No web
+layer, no database, no billing — those are Phase 3+.
 
 **Done when:** a scan of a local fixture target produces a byte-identical
-score twice in a row, and a scan of a real, owned site produces at least one
-defensible, evidence-backed finding.
+score twice in a row (`apps/cli/tests/test_determinism.py`), and a scan of a
+real, owned/public site produces at least one defensible, evidence-backed
+finding (verified live against `example.com`: 6 findings, all TLS checks ran
+and passed against the real handshake).
 
 ## Phase 2 — Registry to v0.1
 
