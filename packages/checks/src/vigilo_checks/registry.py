@@ -44,7 +44,9 @@ def requires(field: str) -> Callable[[Callable[[EvidenceBundle], CheckResult]], 
     find the evidence it declared returns inconclusive, never passed."
     Keeps each check's body focused on its actual condition."""
 
-    def decorator(fn: Callable[[EvidenceBundle], CheckResult]) -> Callable[[EvidenceBundle], CheckResult]:
+    def decorator(
+        fn: Callable[[EvidenceBundle], CheckResult],
+    ) -> Callable[[EvidenceBundle], CheckResult]:
         @wraps(fn)
         def wrapper(bundle: EvidenceBundle) -> CheckResult:
             if getattr(bundle, field) is None:
