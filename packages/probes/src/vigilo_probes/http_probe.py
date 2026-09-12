@@ -16,6 +16,7 @@ from http.cookies import SimpleCookie
 from urllib.parse import urljoin
 
 import httpx
+
 from vigilo_core.evidence import CookieObservation, HttpObservation
 from vigilo_security.egress_guard import (
     Resolver,
@@ -134,4 +135,5 @@ async def run_http(
                     elapsed_ms=elapsed_ms,
                 )
 
-    raise RuntimeError(f"no response obtained for {url}")  # unreachable: loop always returns or raises
+    # unreachable: the loop above always returns or raises
+    raise RuntimeError(f"no response obtained for {url}")

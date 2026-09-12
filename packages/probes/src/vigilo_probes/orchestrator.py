@@ -11,12 +11,11 @@ import asyncio
 
 from vigilo_core.evidence import EvidenceBundle, TlsObservation
 from vigilo_core.validation import validate_target_url
-from vigilo_security.egress_guard import Resolver, validate_and_pin
-
 from vigilo_probes.fingerprint import fingerprint as derive_fingerprint
 from vigilo_probes.http_probe import run_http
 from vigilo_probes.seal import seal
 from vigilo_probes.tls_probe import run_tls
+from vigilo_security.egress_guard import Resolver, validate_and_pin
 
 
 async def run_probes(url: str, resolver: Resolver | None = None) -> EvidenceBundle:

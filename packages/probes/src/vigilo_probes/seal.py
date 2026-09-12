@@ -5,7 +5,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from vigilo_core.evidence import EvidenceBundle, FingerprintObservation, HttpObservation, TlsObservation
+from vigilo_core.evidence import (
+    EvidenceBundle,
+    FingerprintObservation,
+    HttpObservation,
+    TlsObservation,
+)
 
 
 def seal(

@@ -49,7 +49,9 @@ def fingerprint(http: HttpObservation | None) -> FingerprintObservation:
                 hosting.add(label)
 
     body_lower = http.body_excerpt.lower()
-    frameworks = {label for needle, label in _FRAMEWORK_BODY_SIGNALS.items() if needle in body_lower}
+    frameworks = {
+        label for needle, label in _FRAMEWORK_BODY_SIGNALS.items() if needle in body_lower
+    }
 
     return FingerprintObservation(
         hosting_signals=sorted(hosting),

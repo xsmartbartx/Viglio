@@ -38,15 +38,18 @@ def run_tls(host: str, pinned_ip: str, port: int) -> TlsObservation:
     context = ssl.create_default_context()
 
     try:
-        with socket.create_connection((pinned_ip, port), timeout=_HANDSHAKE_TIMEOUT) as sock:
-            with context.wrap_socket(sock, server_hostname=host) as tls_sock:
-                cert = tls_sock.getpeercert()
-                cipher = tls_sock.cipher()
-                protocol_version = tls_sock.version()
+        with (
+            socket.create_connection((pinned_ip, port), timeout=_HANDSHAKE_TIMEOUT) as sock,
+            context.wrap_socket(sock, server_hostname=host) as tls_sock,
+        ):
+            cert = tls_sock.getpeercert()
+            cipher = tls_sock.cipher()
+            protocol_version = tls_sock.version()
     except ssl.SSLCertVerificationError as exc:
         return TlsObservation(attempted=True, verified=False, verify_error=str(exc))
     except (ssl.SSLError, OSError) as exc:
-        return TlsObservation(attempted=True, verified=False, verify_error=f"{type(exc).__name__}: {exc}")
+        error = f"{type(exc).__name__}: {exc}"
+        return TlsObservation(attempted=True, verified=False, verify_error=error)
 
     not_before = _parse_cert_time(cert["notBefore"]) if cert.get("notBefore") else None
     not_after = _parse_cert_time(cert["notAfter"]) if cert.get("notAfter") else None
