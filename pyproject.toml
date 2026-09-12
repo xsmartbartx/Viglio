@@ -11,20 +11,34 @@ members = ["packages/*", "apps/*"]
 [dependency-groups]
 dev = [
     "pytest>=8.3",
+    "pytest-asyncio>=0.24",
     "ruff>=0.7",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["packages/core/src", "packages/security/src", "apps/api/src"]
+src = [
+    "packages/core/src",
+    "packages/security/src",
+    "packages/probes/src",
+    "packages/checks/src",
+    "packages/scoring/src",
+    "apps/api/src",
+    "apps/cli/src",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
 testpaths = [
     "packages/core/tests",
     "packages/security/tests",
+    "packages/probes/tests",
+    "packages/checks/tests",
+    "packages/scoring/tests",
     "apps/api/tests",
+    "apps/cli/tests",
 ]
