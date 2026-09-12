@@ -31,6 +31,13 @@ src = [
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+# Check manifests carry long natural-language descriptions, remediation text
+# and reference URLs — content, not logic. Wrapping them would hurt
+# readability more than the line-length limit helps here.
+"packages/checks/src/vigilo_checks/hdr.py" = ["E501"]
+"packages/checks/src/vigilo_checks/tls.py" = ["E501"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = [

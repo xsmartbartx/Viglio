@@ -7,9 +7,9 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime
 
+from vigilo_checks.registry import Check, CheckResult, requires
 from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.models import CheckManifest, Confidence, Severity, Tier, Verdict
-from vigilo_checks.registry import Check, CheckResult, requires
 
 _WEAK_PROTOCOLS = {"SSLv2", "SSLv3", "TLSv1", "TLSv1.1"}
 _WEAK_CIPHER_MARKERS = ("RC4", "3DES", "NULL", "EXPORT", "MD5")

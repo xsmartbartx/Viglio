@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import re
 
+from vigilo_checks.registry import Check, CheckResult, get_header, requires
 from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.models import CheckManifest, Confidence, Severity, Tier, Verdict
-from vigilo_checks.registry import Check, CheckResult, get_header, requires
 
 _VERSION_PATTERN = re.compile(r"\d+\.\d+")
 _SIX_MONTHS_SECONDS = 15_768_000

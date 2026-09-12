@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import hashlib
 
+from vigilo_checks.registry import Check, CheckResult
 from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.models import Evidence, Finding
-from vigilo_checks.registry import Check, CheckResult
 
 
 def _fingerprint(check_id: str, target_origin: str) -> str:
