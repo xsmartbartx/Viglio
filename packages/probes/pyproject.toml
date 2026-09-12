@@ -13,6 +13,9 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest-asyncio>=0.24",
+    # Test-only: generates a throwaway self-signed cert for test_tls_probe.py's
+    # local TLS fixture server. Not a production dependency (see ADR-0002).
+    "cryptography>=43",
 ]
 
 [tool.uv.sources]
