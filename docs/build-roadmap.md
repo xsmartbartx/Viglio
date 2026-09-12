@@ -12,7 +12,7 @@ demonstrated.
 
 ---
 
-## Phase 0 — Foundations ✅ (this phase)
+## Phase 0 — Foundations ✅
 
 Repository skeleton; `packages/core` (models, validation, logging, errors,
 redaction, config); `packages/security`'s egress guard (SSRF/DNS-rebinding
