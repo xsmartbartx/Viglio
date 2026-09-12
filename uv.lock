@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 members = [
     "vigilo-api",
     "vigilo-checks",
+    "vigilo-cli",
     "vigilo-core",
     "vigilo-probes",
     "vigilo-scoring",
@@ -742,6 +743,27 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "vigilo-core", editable = "packages/core" }]
+
+[[package]]
+name = "vigilo-cli"
+version = "0.1.0"
+source = { editable = "apps/cli" }
+dependencies = [
+    { name = "vigilo-checks" },
+    { name = "vigilo-core" },
+    { name = "vigilo-probes" },
+    { name = "vigilo-scoring" },
+    { name = "vigilo-security" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vigilo-checks", editable = "packages/checks" },
+    { name = "vigilo-core", editable = "packages/core" },
+    { name = "vigilo-probes", editable = "packages/probes" },
+    { name = "vigilo-scoring", editable = "packages/scoring" },
+    { name = "vigilo-security", editable = "packages/security" },
+]
 
 [[package]]
 name = "vigilo-core"

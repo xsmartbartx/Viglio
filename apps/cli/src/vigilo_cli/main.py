@@ -11,13 +11,12 @@ import asyncio
 import json
 import sys
 
+from vigilo_cli.pipeline import evaluate
 from vigilo_core.errors import StructuredError
 from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.models import Finding, Score, Verdict
 from vigilo_probes import run_probes
 from vigilo_probes.store import LocalFileEvidenceStore
-
-from vigilo_cli.pipeline import evaluate
 
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
