@@ -11,6 +11,7 @@ members = [
     "vigilo-identity",
     "vigilo-persistence",
     "vigilo-probes",
+    "vigilo-project",
     "vigilo-scoring",
     "vigilo-security",
     "vigilo-workspace",
@@ -1132,6 +1133,31 @@ dev = [
     { name = "cryptography", specifier = ">=43" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
 ]
+
+[[package]]
+name = "vigilo-project"
+version = "0.1.0"
+source = { editable = "packages/project" }
+dependencies = [
+    { name = "vigilo-core" },
+    { name = "vigilo-identity" },
+    { name = "vigilo-persistence" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vigilo-core", editable = "packages/core" },
+    { name = "vigilo-identity", editable = "packages/identity" },
+    { name = "vigilo-persistence", editable = "packages/persistence" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest-asyncio", specifier = ">=0.24" }]
 
 [[package]]
 name = "vigilo-scoring"
