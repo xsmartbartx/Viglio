@@ -24,8 +24,14 @@ src = [
     "packages/probes/src",
     "packages/checks/src",
     "packages/scoring/src",
+    "packages/persistence/src",
+    "packages/identity/src",
+    "packages/project/src",
+    "packages/integrations/src",
+    "packages/orchestrator/src",
     "apps/api/src",
     "apps/cli/src",
+    "apps/scanner/src",
 ]
 
 [tool.ruff.lint]
@@ -67,6 +73,12 @@ testpaths = [
     "packages/probes/tests",
     "packages/checks/tests",
     "packages/scoring/tests",
+    "packages/persistence/tests",
+    "packages/identity/tests",
+    "packages/project/tests",
+    "packages/integrations/tests",
+    "packages/orchestrator/tests",
     "apps/api/tests",
     "apps/cli/tests",
+    "apps/scanner/tests",
 ]
