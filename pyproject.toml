@@ -64,6 +64,10 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 "packages/checks/tests/test_dat.py" = ["E501"]
 "packages/probes/tests/test_backend_probe.py" = ["E501"]
 "packages/probes/tests/test_backend_probe_ssrf.py" = ["E501"]
+# Ownership-verification detail strings/URLs and per-fixture assertions,
+# same rationale as the check manifests/tests above.
+"packages/security/src/vigilo_security/ownership.py" = ["E501"]
+"packages/security/tests/test_ownership.py" = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

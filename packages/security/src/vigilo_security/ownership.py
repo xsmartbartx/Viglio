@@ -82,7 +82,8 @@ async def _fetch_bounded(
     missing file/tag is the expected state before the owner has acted."""
     request_url = _build_pinned_url(conn, path)
     try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, transport=transport) as client, client.stream(
+        client = httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, transport=transport)
+        async with client, client.stream(
             "GET",
             request_url,
             headers={"Host": conn.host, "User-Agent": _USER_AGENT},

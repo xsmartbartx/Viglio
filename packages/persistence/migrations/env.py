@@ -14,18 +14,18 @@ from __future__ import annotations
 import asyncio
 from logging.config import fileConfig
 
+import vigilo_orchestrator.orm  # noqa: E402,F401
+from alembic import context
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import async_engine_from_config
+
 # Populate Base.metadata for autogenerate. Import order doesn't matter —
 # SQLAlchemy resolves ForeignKey("table_name.column") string references
 # lazily, so these only need to have been imported at all before
 # `target_metadata` is read below.
 import vigilo_identity.orm  # noqa: E402,F401
-import vigilo_orchestrator.orm  # noqa: E402,F401
 import vigilo_project.orm  # noqa: E402,F401
 import vigilo_security.orm  # noqa: E402,F401
-from alembic import context
-from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
-
 from vigilo_core.config import config as vigilo_config
 from vigilo_persistence.base import Base
 

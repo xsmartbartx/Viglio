@@ -31,4 +31,6 @@ class AuditEventRow(Base):
     action: Mapped[str] = mapped_column(String(64))
     subject: Mapped[str] = mapped_column(String(255))
     event_metadata: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

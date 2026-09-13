@@ -82,6 +82,8 @@ def resolve_authorization(request: AuthorizationRequest) -> AuthorizationDecisio
                 reason="active tier requested without a valid, unexpired ownership proof",
                 denial_code=ErrorCode.TIER_NOT_PERMITTED,
             )
-        return AuthorizationDecision(allowed=True, granted_tier=Tier.ACTIVE, reason="verified owner")
+        return AuthorizationDecision(
+            allowed=True, granted_tier=Tier.ACTIVE, reason="verified owner"
+        )
 
     return AuthorizationDecision(allowed=True, granted_tier=Tier.PASSIVE, reason="passive tier")
