@@ -11,9 +11,17 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 from vigilo_core.errors import ErrorCode, StructuredError
+
+# Loads .env into the process environment if present, without overriding
+# variables the environment (or CI) has already set. Phase 0-2 never needed
+# this — nothing read DATABASE_URL/REDIS_URL/etc. at runtime. Phase 3's
+# control plane does, so `uv run uvicorn ...` / `uv run arq ...` following
+# README's "cp .env.example .env" instructions now actually picks it up.
+load_dotenv()
 
 
 class BrandTheme(BaseModel):
