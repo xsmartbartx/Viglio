@@ -2,6 +2,7 @@ import base64
 import json
 
 import httpx
+
 from vigilo_core.evidence import BundleObservation, FetchedScript, HttpObservation
 from vigilo_probes.backend_probe import run_backend_checks
 
