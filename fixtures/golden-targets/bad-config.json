@@ -9,9 +9,12 @@
       "server": "Apache/2.4.41 (Ubuntu)",
       "x-powered-by": "PHP/7.2.24"
     },
-    "cookies": [],
+    "cookies": [
+      { "name": "sessionid", "secure": false, "http_only": false, "same_site": null, "max_age": 5184000 },
+      { "name": "tracking", "secure": false, "http_only": true, "same_site": "None", "max_age": null }
+    ],
     "redirect_chain": [],
-    "body_excerpt": "<html><body>Bad config fixture</body></html>",
+    "body_excerpt": "<html><body>Bad config fixture. This site uses cookies for analytics. <a href=\"/page?PHPSESSID=abc123\">click here</a> <input type=\"checkbox\" checked> Subscribe to our newsletter for promo offers. <script src=\"https://www.googletagmanager.com/gtag/js\"></script><script>gtag('config', 'G-XXX');</script> <script src=\"https://code.jquery.com/jquery-1.12.4.min.js\"></script> <script src=\"https://cdn.jsdelivr.net/npm/lodash/lodash.min.js\"></script> <script src=\"https://o1.example.com/a.js\"></script><script src=\"https://o2.example.com/a.js\"></script><script src=\"https://o3.example.com/a.js\"></script><script src=\"https://o4.example.com/a.js\"></script><script src=\"https://o5.example.com/a.js\"></script><script src=\"https://o6.example.com/a.js\"></script><script src=\"https://o7.example.com/a.js\"></script><script src=\"https://o8.example.com/a.js\"></script><script src=\"https://o9.example.com/a.js\"></script> django.core.exceptions.ImproperlyConfigured: settings not configured</body></html>",
     "body_size": 44,
     "content_type": null,
     "elapsed_ms": 340.0
@@ -31,5 +34,66 @@
   "fingerprint": {
     "hosting_signals": [],
     "framework_signals": []
+  },
+  "bundle": {
+    "fetched_scripts": [
+      {
+        "url": "http://bad.example/app.js",
+        "status_code": 200,
+        "size": 800,
+        "excerpt": "const AWS_KEY = 'AKIAABCDEFGHIJKLMNOP'; const STRIPE_SECRET = 'sk_live_abcdefghij1234567890'; const SLACK = 'xoxb-1234567890-abcdefghij'; const GH = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; const pk = `-----BEGIN RSA PRIVATE KEY-----\\nMIIEow==\\n-----END RSA PRIVATE KEY-----`; const API_SECRET = 'zzzzzzzzzzzzzzzzzzzzzzzzzzzz1234'; //# sourceMappingURL=app.js.map\\nif (process.env.NODE_ENV !== 'production') { console.warn('dev mode'); } console.log(1);console.log(2);console.log(3);console.log(4);console.log(5);console.log(6);console.log(7);console.log(8);console.log(9);console.log(10);console.log(11); fetch('http://192.168.1.5:8000/debug');",
+        "fetch_error": null
+      }
+    ]
+  },
+  "wellknown": {
+    "security_txt_present": false,
+    "robots_txt_present": false,
+    "sitemap_present": false,
+    "manifest_present": false
+  },
+  "backends": {
+    "detected": [
+      {
+        "provider": "supabase",
+        "url": "https://abcdefghijklmnopqrst.supabase.co",
+        "key_role": "service_role",
+        "key_fingerprint": "supabase_key:eyJh…(len=210,sha256=deadbeef)",
+        "probe_attempted": false,
+        "probe_status_code": null,
+        "probe_indicates_open": false,
+        "probe_error": null
+      },
+      {
+        "provider": "supabase",
+        "url": "https://zzzzzzzzzzzzzzzzzzzz.supabase.co",
+        "key_role": "anon",
+        "key_fingerprint": "supabase_key:eyJh…(len=180,sha256=abad1dea)",
+        "probe_attempted": true,
+        "probe_status_code": 200,
+        "probe_indicates_open": true,
+        "probe_error": null
+      },
+      {
+        "provider": "firebase",
+        "url": "https://bad-app-default-rtdb.firebaseio.com",
+        "key_role": null,
+        "key_fingerprint": null,
+        "probe_attempted": true,
+        "probe_status_code": 200,
+        "probe_indicates_open": true,
+        "probe_error": null
+      },
+      {
+        "provider": "s3",
+        "url": "https://bad-bucket.s3.amazonaws.com",
+        "key_role": null,
+        "key_fingerprint": null,
+        "probe_attempted": true,
+        "probe_status_code": 200,
+        "probe_indicates_open": true,
+        "probe_error": null
+      }
+    ]
   }
 }

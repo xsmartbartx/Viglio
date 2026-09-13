@@ -15,10 +15,10 @@
       "content-type": "text/html; charset=utf-8"
     },
     "cookies": [
-      { "name": "session", "secure": true, "http_only": true, "same_site": "Lax" }
+      { "name": "session", "secure": true, "http_only": true, "same_site": "Lax", "max_age": 3600 }
     ],
     "redirect_chain": [],
-    "body_excerpt": "<html><body>Good config fixture</body></html>",
+    "body_excerpt": "<html><body>Good config fixture. <a href=\"/privacy-policy\">Privacy Policy</a> <a href=\"/terms\">Terms</a> <a href=\"/cookie-policy\">Cookie Policy</a> <a href=\"mailto:hello@good.example\">Contact</a> <script src=\"https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js\" integrity=\"sha384-abc123\" crossorigin=\"anonymous\"></script></body></html>",
     "body_size": 45,
     "content_type": "text/html; charset=utf-8",
     "elapsed_ms": 120.0
@@ -38,5 +38,25 @@
   "fingerprint": {
     "hosting_signals": [],
     "framework_signals": []
+  },
+  "bundle": {
+    "fetched_scripts": [
+      {
+        "url": "https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js",
+        "status_code": 200,
+        "size": 30,
+        "excerpt": "console.log('app initialized');",
+        "fetch_error": null
+      }
+    ]
+  },
+  "wellknown": {
+    "security_txt_present": true,
+    "robots_txt_present": true,
+    "sitemap_present": true,
+    "manifest_present": true
+  },
+  "backends": {
+    "detected": []
   }
 }
