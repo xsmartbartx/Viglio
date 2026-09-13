@@ -36,10 +36,14 @@ class TooManyRedirects(RuntimeError):
     pass
 
 
-def _build_request_url(conn: ValidatedConnection) -> str:
+def build_pinned_url(conn: ValidatedConnection, path: str = "/") -> str:
+    """The URL every probe in this package actually connects to: the literal
+    pinned IP, never the hostname (see module docstring). Shared by
+    `http_probe`, `wellknown_probe` and `bundle_probe` — anything issuing a
+    request against an already-validated connection uses this."""
     scheme = conn.origin.split("://", 1)[0]
     host = f"[{conn.pinned_ip}]" if ":" in conn.pinned_ip else conn.pinned_ip
-    return f"{scheme}://{host}:{conn.port}/"
+    return f"{scheme}://{host}:{conn.port}{path}"
 
 
 def _parse_set_cookie_headers(raw_headers: list[str]) -> list[CookieObservation]:
@@ -51,12 +55,18 @@ def _parse_set_cookie_headers(raw_headers: list[str]) -> list[CookieObservation]
         except Exception:  # noqa: BLE001 — a malformed Set-Cookie header is hostile input, not a bug
             continue
         for name, morsel in jar.items():
+            raw_max_age = morsel["max-age"]
+            try:
+                max_age = int(raw_max_age) if raw_max_age else None
+            except ValueError:
+                max_age = None
             cookies.append(
                 CookieObservation(
                     name=name,
                     secure=bool(morsel["secure"]),
                     http_only=bool(morsel["httponly"]),
                     same_site=morsel["samesite"] or None,
+                    max_age=max_age,
                 )
             )
     return cookies
@@ -80,7 +90,7 @@ async def run_http(
 
     async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, transport=transport) as client:
         for hop in range(_MAX_REDIRECTS + 1):
-            request_url = _build_request_url(conn)
+            request_url = build_pinned_url(conn)
             async with client.stream(
                 "GET",
                 request_url,
