@@ -6,10 +6,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from vigilo_core.evidence import (
+    BackendObservation,
+    BundleObservation,
     EvidenceBundle,
     FingerprintObservation,
     HttpObservation,
     TlsObservation,
+    WellKnownObservation,
 )
 
 
@@ -18,8 +21,13 @@ def seal(
     http: HttpObservation | None,
     tls: TlsObservation | None,
     fingerprint: FingerprintObservation | None,
+    bundle: BundleObservation | None = None,
+    wellknown: WellKnownObservation | None = None,
+    backends: BackendObservation | None = None,
 ) -> EvidenceBundle:
-    bundle_id = EvidenceBundle.compute_id(target_origin, http, tls, fingerprint)
+    bundle_id = EvidenceBundle.compute_id(
+        target_origin, http, tls, fingerprint, bundle, wellknown, backends
+    )
     return EvidenceBundle(
         bundle_id=bundle_id,
         target_origin=target_origin,
@@ -27,4 +35,7 @@ def seal(
         http=http,
         tls=tls,
         fingerprint=fingerprint,
+        bundle=bundle,
+        wellknown=wellknown,
+        backends=backends,
     )

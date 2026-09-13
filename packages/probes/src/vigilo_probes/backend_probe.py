@@ -51,9 +51,11 @@ _FIREBASE_DATABASE_URL_PATTERN = re.compile(
     r'databaseURL["\']?\s*[:=]\s*["\']([^"\']*firebaseio\.com[^"\']*)["\']'
 )
 _S3_VIRTUAL_HOSTED_PATTERN = re.compile(
-    r"https://([a-z0-9.\-]+)\.s3[.\-][a-z0-9\-]*\.amazonaws\.com"
+    r"https://([a-z0-9.\-]+)\.s3(?:[.\-][a-z0-9\-]+)?\.amazonaws\.com"
 )
-_S3_PATH_STYLE_PATTERN = re.compile(r"https://s3[.\-][a-z0-9\-]*\.amazonaws\.com/([a-z0-9.\-]+)")
+_S3_PATH_STYLE_PATTERN = re.compile(
+    r"https://s3(?:[.\-][a-z0-9\-]+)?\.amazonaws\.com/([a-z0-9.\-]+)"
+)
 _GCS_BUCKET_PATTERN = re.compile(r"https://storage\.googleapis\.com/([a-z0-9._\-]+)")
 
 
