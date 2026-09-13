@@ -1,14 +1,22 @@
 [project]
 name = "vigilo-api"
 version = "0.1.0"
-description = "Vigilo API — control-plane HTTP surface (Phase 0: health/version bootstrap only)"
+description = "Vigilo API — control-plane HTTP surface"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
+    "httpx>=0.28",
+    "pyjwt[crypto]>=2.9",
+    "arq>=0.26",
+    "email-validator>=2.0",
     "vigilo-core",
     "vigilo-security",
+    "vigilo-persistence",
+    "vigilo-identity",
+    "vigilo-project",
+    "vigilo-orchestrator",
 ]
 
 [dependency-groups]
@@ -19,6 +27,10 @@ dev = [
 [tool.uv.sources]
 vigilo-core = { workspace = true }
 vigilo-security = { workspace = true }
+vigilo-persistence = { workspace = true }
+vigilo-identity = { workspace = true }
+vigilo-project = { workspace = true }
+vigilo-orchestrator = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

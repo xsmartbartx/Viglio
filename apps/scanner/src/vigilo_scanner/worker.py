@@ -7,6 +7,7 @@ uses to enqueue jobs, so both ends of the queue point at the same Redis.
 from __future__ import annotations
 
 from arq.connections import RedisSettings
+
 from vigilo_core.config import config
 from vigilo_core.errors import ErrorCode, StructuredError
 from vigilo_orchestrator.jobs import run_scan_job, verify_ownership_job

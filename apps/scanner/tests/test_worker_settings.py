@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from vigilo_orchestrator.jobs import run_scan_job, verify_ownership_job
-
 from vigilo_scanner.worker import WorkerSettings
 
 
