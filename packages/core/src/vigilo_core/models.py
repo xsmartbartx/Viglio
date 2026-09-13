@@ -11,6 +11,7 @@ would just be dead schema.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from enum import StrEnum
 
@@ -45,11 +46,21 @@ class Verdict(StrEnum):
 
 class Target(BaseModel):
     """A scan target, identified by its canonical origin — the output of
-    `vigilo_core.validation.validate_target_url`."""
+    `vigilo_core.validation.validate_target_url`.
 
+    `id`/`project_id`/`verification_method`/`opt_out_flag` are optional so
+    Phase 1/2 callers that only ever had an origin to work with
+    (`Target(origin=...)`) are unaffected. They are populated once
+    `packages/project`'s persistence layer (Phase 3) is the source of a
+    `Target` instance."""
+
+    id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     origin: str
     verification_status: Tier = Tier.PASSIVE
     verified_at: datetime | None = None
+    verification_method: str | None = None
+    opt_out_flag: bool = False
 
 
 class CheckManifest(BaseModel):

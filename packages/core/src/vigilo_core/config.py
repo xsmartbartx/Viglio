@@ -55,6 +55,10 @@ class Config(BaseModel):
     object_store_access_key: str | None = None
     object_store_secret_key: str | None = None
     object_store_bucket: str | None = None
+    clerk_secret_key: str | None = None
+    clerk_jwks_url: str | None = None
+    postmark_server_token: str | None = None
+    mail_from_address: str | None = None
 
 
 def _default_brand_config_path() -> Path:
@@ -105,4 +109,8 @@ def config() -> Config:
         object_store_access_key=os.environ.get("OBJECT_STORE_ACCESS_KEY"),
         object_store_secret_key=os.environ.get("OBJECT_STORE_SECRET_KEY"),
         object_store_bucket=os.environ.get("OBJECT_STORE_BUCKET"),
+        clerk_secret_key=os.environ.get("CLERK_SECRET_KEY"),
+        clerk_jwks_url=os.environ.get("CLERK_JWKS_URL"),
+        postmark_server_token=os.environ.get("POSTMARK_SERVER_TOKEN"),
+        mail_from_address=os.environ.get("MAIL_FROM_ADDRESS"),
     )

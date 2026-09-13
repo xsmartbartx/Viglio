@@ -33,6 +33,20 @@ class ErrorCode(StrEnum):
     BUDGET_EXHAUSTED = "BUDGET_EXHAUSTED"
     REGISTRY_VERSION_UNKNOWN = "REGISTRY_VERSION_UNKNOWN"
 
+    # Scan authorization / ownership verification (Phase 3, docs/adr/ADR-0003)
+    RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"
+    OWNERSHIP_PROOF_EXPIRED = "OWNERSHIP_PROOF_EXPIRED"
+    OWNERSHIP_PROOF_NOT_FOUND = "OWNERSHIP_PROOF_NOT_FOUND"
+    VERIFICATION_IO_FAILED = "VERIFICATION_IO_FAILED"
+
+    # Scan orchestrator (Phase 3, docs/modules.md §8)
+    INVALID_STATE_TRANSITION = "INVALID_STATE_TRANSITION"
+    SCAN_JOB_NOT_FOUND = "SCAN_JOB_NOT_FOUND"
+
+    # Integrations (Phase 3, docs/modules.md §7)
+    MAIL_DELIVERY_FAILED = "MAIL_DELIVERY_FAILED"
+    OBJECT_STORE_ERROR = "OBJECT_STORE_ERROR"
+
 
 class StructuredError(Exception):
     """A structured, loggable error carrying a stable code and sanitized context.
