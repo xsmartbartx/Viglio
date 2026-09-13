@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from vigilo_core.config import config
 
+from vigilo_core.config import config
 from vigilo_integrations.errors import MailDeliveryFailed
 from vigilo_integrations.mail import send_transactional_email
 

@@ -8,8 +8,8 @@ codebase (`httpx.MockTransport` in tests) so no test ever sends a real email.
 from __future__ import annotations
 
 import httpx
-from vigilo_core.config import config
 
+from vigilo_core.config import config
 from vigilo_integrations.errors import MailDeliveryFailed
 
 _POSTMARK_URL = "https://api.postmarkapp.com/email"
@@ -25,7 +25,9 @@ async def send_transactional_email(
 ) -> None:
     cfg = config()
     if not cfg.postmark_server_token or not cfg.mail_from_address:
-        raise MailDeliveryFailed("Postmark is not configured (missing server token or from address)")
+        raise MailDeliveryFailed(
+            "Postmark is not configured (missing server token or from address)"
+        )
 
     payload = {
         "From": cfg.mail_from_address,

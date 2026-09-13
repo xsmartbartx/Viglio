@@ -8,8 +8,8 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from vigilo_core.config import config
 
+from vigilo_core.config import config
 from vigilo_integrations.storage import get_evidence_bundle, put_evidence_bundle
 
 pytestmark = pytest.mark.skipif(

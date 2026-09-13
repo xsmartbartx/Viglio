@@ -18,9 +18,9 @@ from functools import lru_cache
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
+
 from vigilo_core.config import config
 from vigilo_core.errors import ErrorCode, StructuredError
-
 from vigilo_integrations.errors import ObjectStoreError
 
 _KEY_PREFIX = "evidence/"
