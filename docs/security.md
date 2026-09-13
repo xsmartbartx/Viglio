@@ -6,12 +6,11 @@ Detail for the `security` module (`docs/modules.md` §2). This document grows
 phase by phase alongside the code — it is not a complete security model yet.
 Referenced by `docs/architecture.md` and ADR-0003.
 
-**Phase 0 scope:** the egress guard only. Authorization (`resolve_authorization`,
-`verify_ownership`), the rate governor, and the audit-trail writer are
-specified in ADR-0003 but not yet implemented — they need `Account`/`Target`
-persistence that arrives in Phase 3. Redaction (`redact()`) is implemented in
-`packages/core`, not here, since it has no I/O and no security *decision* to
-make — see `docs/modules.md` §1.
+**Phase 0** shipped the egress guard only. **Phase 3** adds scan
+authorization, ownership verification and the audit-trail writer (§3-§5
+below) — the rate governor and abuse heuristics remain future work (§6).
+Redaction (`redact()`) is implemented in `packages/core`, not here, since it
+has no I/O and no security *decision* to make — see `docs/modules.md` §1.
 
 ---
 
@@ -66,14 +65,102 @@ still deny), and a redirect-into-internal-space case.
 
 | Concern | Where it will live | Blocked on |
 | --- | --- | --- |
-| Scan authorization (`resolve_authorization`, `verify_ownership`) | `packages/security` | `Account`/`Target` persistence (Phase 3) |
-| Rate governor (per-account, per-target-host, global) | `packages/security` | Redis-backed rate state (Phase 3) |
-| Audit trail writer (append-only) | `packages/security` | Database schema (Phase 3) |
+| Rate governor (per-account, per-target-host, global, Redis-backed) | `packages/security` | Phase 6/7 — Phase 3 uses a minimal DB-derived ceiling instead, see §3 |
 | Abuse heuristics (enumeration patterns, target churn) | `packages/security` | Scan history to detect patterns against (Phase 3+) |
 | Redirect same-registrable-domain restriction | `packages/security/egress_guard.py` | Public-suffix-list dependency (Phase 1) |
 | Worker network isolation (the scan zone has no route to internal services) | Deployment topology, not application code | Phase 1 deployment target |
+| Automated `/.well-known/vigilo-optout.txt` denylist fetching | `packages/security`/`packages/project` | Phase 3 scope trim — `Target.opt_out_flag` exists with a manual setter only |
+| Email ownership verification | `packages/security/ownership.py` | A click-through confirmation UI (Phase 4) |
+
+---
+
+## 3. Scan authorization (`resolve_authorization`)
+
+**Status: implemented, `packages/security/src/vigilo_security/authorization.py`.**
+
+A pure function over primitives and enums — `AuthorizationRequest` in,
+`AuthorizationDecision` out — with no ORM types and no I/O, matching
+`security`'s dependency-graph position (`core` + `persistence` only, never
+`identity`/`project`). The caller (an `apps/api` handler) is responsible for
+loading whatever `Account`/`Target`/`OwnershipProof` state it needs and
+reducing it to `AuthorizationRequest`'s fields before calling this.
+
+**Decision order** (first match wins, fail-closed throughout):
+
+1. `denylisted` or `target_opt_out` → **deny outright**. No scan, no
+   `Account`/`Target` row created — only the audit event.
+2. `recent_scan_count_24h` over a fixed ceiling (20, a Phase 3 scope trim —
+   the full Redis-backed governor is Phase 6/7) → **deny**, code
+   `RATE_LIMIT_EXCEEDED`.
+3. `requested_tier == ACTIVE` without both `target_verification_status ==
+   ACTIVE` *and* `ownership_proof_valid` → **downgrade to passive, not a
+   rejection**. ADR-0003 says tier resolution "never upgrades" — a request
+   for more than is available is granted at what *is* available, which is
+   a downgrade, not a failure.
+4. Otherwise → allowed at the requested tier.
+
+Every branch is exercised in `packages/security/tests/test_authorization.py`,
+including that a denylist hit overrides even a fully verified, valid proof.
+
+## 4. Ownership verification (`verify_ownership`)
+
+**Status: implemented, `packages/security/src/vigilo_security/ownership.py`.**
+
+Four methods, matching ADR-0003's ownership-proof list:
+
+| Method | How | Touches the target? |
+| --- | --- | --- |
+| `dns_txt` | Injectable TXT-record resolver (`dnspython`), looks for `<dnsVerificationKey>=<nonce>` | No — queries DNS infrastructure, not the target |
+| `wellknown_file` | `validate_and_pin()` then a bounded GET on `<wellKnownPath>`, exact-match the nonce | Yes |
+| `meta_tag` | `validate_and_pin()` then a bounded GET on `/`, regex for `<meta name="...verification" content="...">` | Yes |
+| `email` | Not implemented — `NotImplementedError` | N/A |
+
+The two target-fetching methods are built on the **exact `validate_and_pin`
+template** the egress guard established: dependency-injected resolver/
+transport, a dedicated result shape, deny-by-default. They call
+`validate_and_pin()` and connect to the pinned IP before any request, same
+as any probe — this is SSRF-relevant code by construction, not by
+afterthought.
+
+**Where this runs.** Always dispatched via `verify_ownership_job` inside
+`apps/scanner`'s ARQ worker — never called synchronously from `apps/api`,
+for all four methods, including the two (`dns_txt`, `email`) that don't
+fetch the target directly. See the ADR-0003 Phase 3 addendum for the
+reasoning: uniformity with "the control plane never makes an outbound
+request to a target, ever" beats a method-by-method special case.
+
+**Testing.** `packages/security/tests/test_ownership.py` is build-blocking
+in CI (`ownership-verification-suite`, `.github/workflows/ci.yml`), same
+standard as the egress-guard suite: no real DNS or network I/O anywhere in
+that file, proven by construction (every call passes an explicit
+`resolver=`/`txt_resolver=`/`transport=`), plus an explicit parametrized
+check that a target resolving to loopback/link-local/metadata addresses is
+denied before any HTTP request is attempted.
+
+## 5. Audit trail (`audit`)
+
+**Status: implemented, `packages/security/src/vigilo_security/audit.py`
++ `orm.py`.**
+
+`audit(session, event: AuditEvent) -> None` takes an already-open session
+so a caller can make "resolve authorization → write the audit event →
+create the ScanJob" one transaction, committed together — the literal
+ordering ADR-0003 requires ("written to the audit trail before the scan is
+queued, not after").
+
+**Append-only is a database property**, not application discipline:
+`packages/persistence/migrations/versions/0002_audit_events_append_only.py`
+adds a Postgres `BEFORE UPDATE OR DELETE OR TRUNCATE` trigger on
+`audit_events` that unconditionally raises. A trigger, not a `REVOKE`
+grant, because the database has one owning role and Postgres owners bypass
+`REVOKE` — see the ADR-0003 addendum for the full reasoning.
+`packages/security/tests/test_audit_append_only.py` runs the real
+migrations (not the ORM-only `Base.metadata.create_all()` other tests use)
+and proves `UPDATE`, `DELETE`, and `TRUNCATE` all raise.
 
 ## References
 
-ADR-0001, ADR-0003, `docs/architecture.md` §7 and §15 (numbered as such in
-`docs/prooflight-vision-and-architecture.md`), `docs/modules.md` §2.
+ADR-0001, ADR-0003 (including its Phase 3 addendum), `docs/architecture.md`
+§7 and §15 (numbered as such in
+`docs/prooflight-vision-and-architecture.md`), `docs/modules.md` §2, §2a, §2b,
+`docs/data-model.md`.

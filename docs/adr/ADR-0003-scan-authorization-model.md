@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Accepted (model); implementation deferred to Phase 3 |
+| Status | Accepted; implemented (Phase 3) — see the Phase 3 addendum below |
 | Date | 2026-09-11 |
 
 ## Context
@@ -110,8 +110,59 @@ goes through `validate_and_pin` with zero exceptions
 `packages/probes/tests/test_backend_probe_ssrf.py`) — passive tier changes
 what's *permitted*, never what's *safe*.
 
+## Addendum (Phase 3): implementation decisions
+
+Three judgment calls made while actually building `resolve_authorization()`
+and `verify_ownership()` — the functions this ADR named and deferred since
+Phase 0 — recorded here per the same standing rule as the Phase 2 addendum.
+
+**`verify_ownership()` always runs inside `apps/scanner`'s ARQ worker,
+dispatched via `verify_ownership_job`, never called synchronously from
+`apps/api` — for all four methods, not only the two that fetch the target.**
+`docs/architecture.md` §3 is unconditional: "the control plane never makes
+an outbound request to a target, ever." `dns_txt` queries DNS
+infrastructure, not the target, and `email` (not yet implemented) would
+send mail via Postmark, not touch the target either — a literal reading of
+§3 wouldn't obviously forbid running those two synchronously in `apps/api`.
+Uniformity was chosen anyway: one call path for all four methods is
+simpler to reason about and audit than "these two are control-plane-safe,
+these two aren't," and it costs nothing — an ARQ round-trip is already
+how `apps/api` talks to everything scan-related. `POST
+/v1/targets/{id}/verification/{proof_id}/check` therefore always enqueues
+a job and returns `202`, never a synchronous verification result.
+
+**Clerk was chosen over Supabase Auth** for the managed auth provider
+`docs/adr/ADR-0002-product-scope-and-stack.md` left as an either/or,
+deferred until an account model existed. Reasoning: this backend runs its
+own Postgres (provisioned in Phase 0's `docker-compose.yml`), not
+Supabase's, so Supabase Auth's main ecosystem synergy doesn't apply here;
+Clerk has a clean, stateless JWKS-based JWT-verification story
+(`apps/api/src/vigilo_api/auth.py`) with no vendor database lock-in, and
+its hosted UI components pay off directly once Phase 4 builds the Next.js
+frontend. `get_or_create_account()` (`packages/identity`) is the one
+narrow seam a future provider swap would touch.
+
+**The `audit_events` append-only guarantee is a Postgres `BEFORE UPDATE OR
+DELETE OR TRUNCATE` trigger, not a `REVOKE` grant.** This ADR's Phase 0
+Consequences section flagged the mechanism as "decided concretely when
+Phase 3 designs the schema." A `REVOKE UPDATE, DELETE` grant only stops a
+role that isn't the table's owner — the local/CI database has exactly one
+role (`vigilo`), which owns every table it creates, and Postgres owners
+bypass `REVOKE` unconditionally. Making `REVOKE` actually work would need
+provisioning a second, non-owner database role and a second `DATABASE_URL`
+across dev, CI and production — real infrastructure churn this phase
+doesn't need. A trigger (`packages/persistence/migrations/versions/
+0002_audit_events_append_only.py`) enforces the guarantee regardless of
+which role runs the statement, including against `TRUNCATE` — found to be
+a real gap during development, since Postgres row-level `BEFORE DELETE`
+triggers do not fire for `TRUNCATE` at all, requiring a second,
+statement-level trigger. Role-based `REVOKE` remains a reasonable
+defense-in-depth addition for Phase 7 hardening, not a Phase 3 requirement.
+
 ## References
 
 `docs/vision.md` §2, §5, §7; `docs/prooflight-vision-and-architecture.md` §4;
-`docs/modules.md` §2, §3; `brand.config.json` (`namespaces.dnsVerificationKey`,
-`namespaces.wellKnownPath`); `docs/build-roadmap.md` Phase 2 and Phase 6.
+`docs/modules.md` §2, §2a, §2b, §3; `brand.config.json`
+(`namespaces.dnsVerificationKey`, `namespaces.wellKnownPath`);
+`docs/build-roadmap.md` Phase 2, Phase 3 and Phase 6; `docs/data-model.md`;
+`docs/security.md` §3-§5.
