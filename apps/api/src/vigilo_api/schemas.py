@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr
+
 from vigilo_core.models import Severity, Tier, VerificationMethod
 
 

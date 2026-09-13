@@ -6,10 +6,10 @@ created by a free scan under the same email, if one exists).
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from vigilo_identity.models import Account
 
 from vigilo_api.deps import require_account
 from vigilo_api.schemas import AccountResponse
+from vigilo_identity.models import Account
 
 router = APIRouter(prefix="/v1", tags=["accounts"])
 

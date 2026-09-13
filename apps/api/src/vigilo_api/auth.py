@@ -17,6 +17,7 @@ from typing import Any
 
 import jwt
 from jwt import PyJWKClient
+
 from vigilo_core.config import config
 from vigilo_core.errors import ErrorCode, StructuredError
 

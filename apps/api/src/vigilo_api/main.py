@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
-from vigilo_core.config import config
-from vigilo_core.errors import StructuredError
 
 from vigilo_api.errors import handle_structured_error
 from vigilo_api.routers import accounts, scans, targets
+from vigilo_core.config import config
+from vigilo_core.errors import StructuredError
 
 app = FastAPI(
     title="Vigilo API",

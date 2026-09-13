@@ -9,19 +9,17 @@ from __future__ import annotations
 
 import uuid
 
-from arq.connections import ArqRedis
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException
+
+from vigilo_api.deps import QueueDep, SessionDep
+from vigilo_api.schemas import ScanStatusResponse, ScanSubmission, ScanSubmissionResponse
 from vigilo_core.models import Tier
 from vigilo_core.validation import ValidationError, validate_target_url
 from vigilo_identity.repository import get_or_create_account
+from vigilo_orchestrator.service import advance, create_scan_job, get_scan_by_job_id, get_scan_job
 from vigilo_project.repository import create_target, get_or_create_default_project, get_target
 from vigilo_security.audit import AuditEvent, audit
 from vigilo_security.authorization import AuthorizationRequest, resolve_authorization
-
-from vigilo_api.deps import get_queue, get_session
-from vigilo_api.schemas import ScanStatusResponse, ScanSubmission, ScanSubmissionResponse
-from vigilo_orchestrator.service import advance, create_scan_job, get_scan_by_job_id, get_scan_job
 
 router = APIRouter(prefix="/v1/scans", tags=["scans"])
 
@@ -32,8 +30,8 @@ _DENYLIST: frozenset[str] = frozenset()  # the real denylist source is Phase 6/7
 @router.post("", status_code=202, response_model=ScanSubmissionResponse)
 async def submit_scan(
     body: ScanSubmission,
-    session: AsyncSession = Depends(get_session),
-    queue: ArqRedis = Depends(get_queue),
+    session: SessionDep,
+    queue: QueueDep,
 ) -> ScanSubmissionResponse:
     try:
         origin = validate_target_url(body.target_url)
@@ -55,7 +53,9 @@ async def submit_scan(
     if not decision.allowed:
         await audit(
             session,
-            AuditEvent(actor="api", action="scan_denied", subject=origin, metadata={"reason": decision.reason}),
+            AuditEvent(
+                actor="api", action="scan_denied", subject=origin, metadata={"reason": decision.reason}
+            ),
         )
         await session.commit()  # the denial must survive the HTTPException below
         raise HTTPException(status_code=403, detail=decision.reason)
@@ -75,7 +75,9 @@ async def submit_scan(
         ),
     )
 
-    job = await create_scan_job(session, target.id, decision.granted_tier, body.email, REGISTRY_VERSION)
+    job = await create_scan_job(
+        session, target.id, decision.granted_tier, body.email, REGISTRY_VERSION
+    )
     job = await advance(session, job.id, "authorized")
     await session.commit()  # the job row must be durable before a worker can see it
 
@@ -85,9 +87,7 @@ async def submit_scan(
 
 
 @router.get("/{scan_job_id}", response_model=ScanStatusResponse)
-async def get_scan_status(
-    scan_job_id: uuid.UUID, session: AsyncSession = Depends(get_session)
-) -> ScanStatusResponse:
+async def get_scan_status(scan_job_id: uuid.UUID, session: SessionDep) -> ScanStatusResponse:
     job = await get_scan_job(session, scan_job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="scan not found")

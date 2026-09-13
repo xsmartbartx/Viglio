@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
+
 from vigilo_core.config import config
 from vigilo_core.errors import ErrorCode, StructuredError
 

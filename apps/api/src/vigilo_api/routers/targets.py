@@ -13,6 +13,15 @@ import uuid
 from arq.connections import ArqRedis
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from vigilo_api.deps import get_queue, get_session, require_account
+from vigilo_api.schemas import (
+    TargetCreate,
+    TargetResponse,
+    VerificationCheckResponse,
+    VerificationInitiate,
+    VerificationInitiateResponse,
+)
 from vigilo_core.config import config
 from vigilo_core.models import Target, VerificationMethod
 from vigilo_core.validation import ValidationError, validate_target_url
@@ -23,15 +32,6 @@ from vigilo_project.repository import (
     get_ownership_proof,
     get_target,
     issue_ownership_proof,
-)
-
-from vigilo_api.deps import get_queue, get_session, require_account
-from vigilo_api.schemas import (
-    TargetCreate,
-    TargetResponse,
-    VerificationCheckResponse,
-    VerificationInitiate,
-    VerificationInitiateResponse,
 )
 
 router = APIRouter(prefix="/v1/targets", tags=["targets"])
