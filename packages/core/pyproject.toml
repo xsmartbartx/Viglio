@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 dependencies = [
     "pydantic>=2.7",
+    "python-dotenv>=1.0",
 ]
 
 [build-system]
