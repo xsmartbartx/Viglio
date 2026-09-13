@@ -25,9 +25,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
+
 from vigilo_core.config import config
 from vigilo_core.models import VerificationMethod
-
 from vigilo_security.egress_guard import Resolver, ValidatedConnection, validate_and_pin
 from vigilo_security.exceptions import VerificationIOError
 

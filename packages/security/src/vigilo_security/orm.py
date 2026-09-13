@@ -16,6 +16,7 @@ from datetime import datetime
 
 from sqlalchemy import JSON, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
+
 from vigilo_persistence.base import Base
 
 
