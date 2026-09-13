@@ -7,11 +7,16 @@ specific check, probe or provider. See docs/modules.md §1.
 from vigilo_core.config import Config, config
 from vigilo_core.errors import ErrorCode, StructuredError, error
 from vigilo_core.evidence import (
+    BackendObservation,
+    BundleObservation,
     CookieObservation,
+    DetectedBackend,
     EvidenceBundle,
+    FetchedScript,
     FingerprintObservation,
     HttpObservation,
     TlsObservation,
+    WellKnownObservation,
 )
 from vigilo_core.logging import LogEvent, log
 from vigilo_core.redact import Fingerprint, redact
@@ -23,11 +28,16 @@ __all__ = [
     "ErrorCode",
     "StructuredError",
     "error",
+    "BackendObservation",
+    "BundleObservation",
     "CookieObservation",
+    "DetectedBackend",
     "EvidenceBundle",
+    "FetchedScript",
     "FingerprintObservation",
     "HttpObservation",
     "TlsObservation",
+    "WellKnownObservation",
     "LogEvent",
     "log",
     "Fingerprint",
