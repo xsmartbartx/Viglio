@@ -21,6 +21,53 @@ jobs:
   test:
     name: Unit and contract tests
     runs-on: ubuntu-latest
+    # Phase 3 added persistence/queue/object-storage-backed packages — these
+    # service containers mirror docker-compose.yml's local dev stack, on
+    # each service's default port (CI has no port conflict with another
+    # project, unlike the shifted ports docker-compose.yml uses locally).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vigilo
+          POSTGRES_PASSWORD: vigilo-dev-secret
+          POSTGRES_DB: vigilo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vigilo -d vigilo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      minio:
+        # Not `minio/minio` — GitHub Actions service containers can't
+        # override `command:`, and that image's default entrypoint requires
+        # one. Bitnami's image starts the server correctly from env vars
+        # alone.
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: vigilo
+          MINIO_ROOT_PASSWORD: vigilo-dev-secret
+        ports: ["9000:9000"]
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vigilo:vigilo-dev-secret@localhost:5432/vigilo
+      REDIS_URL: redis://localhost:6379/0
+      OBJECT_STORE_ENDPOINT: http://localhost:9000
+      OBJECT_STORE_ACCESS_KEY: vigilo
+      OBJECT_STORE_SECRET_KEY: vigilo-dev-secret
+      OBJECT_STORE_BUCKET: vigilo-evidence
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
@@ -28,6 +75,25 @@ jobs:
           enable-cache: true
       - run: uv python install 3.11
       - run: uv sync --all-packages
+      - name: Create the evidence bucket
+        run: |
+          uv run python -c "
+          import boto3
+          from botocore.exceptions import ClientError
+          client = boto3.client(
+              's3',
+              endpoint_url='http://localhost:9000',
+              aws_access_key_id='vigilo',
+              aws_secret_access_key='vigilo-dev-secret',
+              region_name='us-east-1',
+          )
+          try:
+              client.create_bucket(Bucket='vigilo-evidence')
+          except ClientError as exc:
+              if 'BucketAlreadyOwnedByYou' not in str(exc):
+                  raise
+          "
+      - run: uv run alembic -c packages/persistence/alembic.ini upgrade head
       - run: uv run pytest -q
 
   # docs/prooflight-vision-and-architecture.md §18.3: "Attempts against
@@ -46,3 +112,20 @@ jobs:
       - run: uv python install 3.11
       - run: uv sync --all-packages
       - run: uv run pytest packages/security/tests/test_egress_guard.py -v
+
+  # Phase 3's ownership-verification methods fetch the target's own origin
+  # (well-known file, meta tag) — the same SSRF surface as the egress guard,
+  # so it gets the same build-blocking standard. No service containers
+  # needed: this suite is specifically about proving no real DNS/network I/O
+  # happens (packages/security/tests/test_ownership.py's own docstring).
+  ownership-verification-suite:
+    name: Ownership verification suite (network-safety — build blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.11
+      - run: uv sync --all-packages
+      - run: uv run pytest packages/security/tests/test_ownership.py -v
