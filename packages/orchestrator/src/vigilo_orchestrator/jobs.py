@@ -43,7 +43,9 @@ def _evaluate(bundle: EvidenceBundle) -> tuple[list[Finding], Score]:
     return findings, result
 
 
-def _render_report_email(target_origin: str, result: Score, findings: list[Finding]) -> tuple[str, str]:
+def _render_report_email(
+    target_origin: str, result: Score, findings: list[Finding]
+) -> tuple[str, str]:
     failed = [f for f in findings if f.verdict == Verdict.FAILED]
     top = sorted(failed, key=lambda f: f.severity.value)[:5]
 
@@ -152,7 +154,9 @@ async def run_scan_job(ctx: dict[str, Any], scan_job_id: str) -> None:
     if job.requested_by:
         subject, html_body = _render_report_email(target.origin, result, findings)
         try:
-            await send_transactional_email(to=job.requested_by, subject=subject, html_body=html_body)
+            await send_transactional_email(
+                to=job.requested_by, subject=subject, html_body=html_body
+            )
         except MailDeliveryFailed:
             log(
                 LogEvent(

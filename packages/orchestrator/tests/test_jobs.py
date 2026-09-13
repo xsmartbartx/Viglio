@@ -120,7 +120,9 @@ async def test_verify_ownership_job_marks_target_active_on_success(db_schema, mo
         proof = await issue_ownership_proof(session, target.id, VerificationMethod.DNS_TXT)
 
     async def fake_verify_ownership(method, origin, nonce, **kwargs):
-        return VerificationResult(verified=True, method=method, detail="ok", checked_at=datetime.now(UTC))
+        return VerificationResult(
+            verified=True, method=method, detail="ok", checked_at=datetime.now(UTC)
+        )
 
     monkeypatch.setattr(jobs, "verify_ownership", fake_verify_ownership)
 
@@ -138,7 +140,9 @@ async def test_verify_ownership_job_does_nothing_on_failure(db_schema, monkeypat
         proof = await issue_ownership_proof(session, target.id, VerificationMethod.META_TAG)
 
     async def fake_verify_ownership(method, origin, nonce, **kwargs):
-        return VerificationResult(verified=False, method=method, detail="not yet", checked_at=datetime.now(UTC))
+        return VerificationResult(
+            verified=False, method=method, detail="not yet", checked_at=datetime.now(UTC)
+        )
 
     monkeypatch.setattr(jobs, "verify_ownership", fake_verify_ownership)
 

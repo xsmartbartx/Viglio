@@ -107,9 +107,13 @@ async def test_record_scan_result_persists_the_scan_and_findings(db_session: Asy
         _finding("VG-HDR-001", Verdict.FAILED, Severity.HIGH),
         _finding("VG-HDR-002", Verdict.PASSED, Severity.PASSED),
     ]
-    result = Score(value=72.0, grade="C", registry_version="0.1", counts_by_severity={Severity.HIGH: 1})
+    result = Score(
+        value=72.0, grade="C", registry_version="0.1", counts_by_severity={Severity.HIGH: 1}
+    )
 
-    scan = await record_scan_result(db_session, job, findings, result, duration_ms=123, bundle_id="abc123")
+    scan = await record_scan_result(
+        db_session, job, findings, result, duration_ms=123, bundle_id="abc123"
+    )
 
     assert scan.score == 72.0
     assert scan.grade == "C"
