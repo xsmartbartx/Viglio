@@ -54,7 +54,10 @@ async def submit_scan(
         await audit(
             session,
             AuditEvent(
-                actor="api", action="scan_denied", subject=origin, metadata={"reason": decision.reason}
+                actor="api",
+                action="scan_denied",
+                subject=origin,
+                metadata={"reason": decision.reason},
             ),
         )
         await session.commit()  # the denial must survive the HTTPException below

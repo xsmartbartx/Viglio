@@ -5,17 +5,16 @@ created by a free scan under the same email, if one exists).
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from vigilo_api.deps import require_account
+from vigilo_api.deps import AccountDep
 from vigilo_api.schemas import AccountResponse
-from vigilo_identity.models import Account
 
 router = APIRouter(prefix="/v1", tags=["accounts"])
 
 
 @router.get("/me", response_model=AccountResponse)
-async def get_me(account: Account = Depends(require_account)) -> AccountResponse:
+async def get_me(account: AccountDep) -> AccountResponse:
     return AccountResponse(
         account_id=account.id,
         email=account.email,

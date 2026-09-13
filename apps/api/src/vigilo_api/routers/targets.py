@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import uuid
 
-from arq.connections import ArqRedis
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from vigilo_api.deps import get_queue, get_session, require_account
+from vigilo_api.deps import AccountDep, QueueDep, SessionDep
 from vigilo_api.schemas import (
     TargetCreate,
     TargetResponse,
@@ -60,8 +59,8 @@ async def _owned_target_or_404(
 @router.post("", status_code=201, response_model=TargetResponse)
 async def create_target_endpoint(
     body: TargetCreate,
-    account: Account = Depends(require_account),
-    session: AsyncSession = Depends(get_session),
+    account: AccountDep,
+    session: SessionDep,
 ) -> TargetResponse:
     try:
         origin = validate_target_url(body.origin)
@@ -76,8 +75,8 @@ async def create_target_endpoint(
 @router.get("/{target_id}", response_model=TargetResponse)
 async def get_target_endpoint(
     target_id: uuid.UUID,
-    account: Account = Depends(require_account),
-    session: AsyncSession = Depends(get_session),
+    account: AccountDep,
+    session: SessionDep,
 ) -> TargetResponse:
     target = await _owned_target_or_404(session, account, target_id)
     return _to_response(target)
@@ -89,8 +88,8 @@ async def get_target_endpoint(
 async def initiate_verification(
     target_id: uuid.UUID,
     body: VerificationInitiate,
-    account: Account = Depends(require_account),
-    session: AsyncSession = Depends(get_session),
+    account: AccountDep,
+    session: SessionDep,
 ) -> VerificationInitiateResponse:
     target = await _owned_target_or_404(session, account, target_id)
     proof = await issue_ownership_proof(session, target.id, body.method)
@@ -123,9 +122,9 @@ async def initiate_verification(
 async def check_verification(
     target_id: uuid.UUID,
     proof_id: uuid.UUID,
-    account: Account = Depends(require_account),
-    session: AsyncSession = Depends(get_session),
-    queue: ArqRedis = Depends(get_queue),
+    account: AccountDep,
+    session: SessionDep,
+    queue: QueueDep,
 ) -> VerificationCheckResponse:
     await _owned_target_or_404(session, account, target_id)
     proof = await get_ownership_proof(session, proof_id)
