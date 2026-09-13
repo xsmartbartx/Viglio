@@ -67,6 +67,12 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Session-scoped so the lru_cache'd SQLAlchemy async engine (vigilo_persistence
+# .engine.get_engine) — created once, like it is in a real running process —
+# isn't torn down and reused across a new event loop between test functions,
+# which asyncpg raises on ("attached to a different loop").
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = [
     "packages/core/tests",
     "packages/security/tests",

@@ -8,6 +8,7 @@ members = [
     "vigilo-checks",
     "vigilo-cli",
     "vigilo-core",
+    "vigilo-identity",
     "vigilo-persistence",
     "vigilo-probes",
     "vigilo-scoring",
@@ -1044,10 +1045,37 @@ version = "0.1.0"
 source = { editable = "packages/core" }
 dependencies = [
     { name = "pydantic" },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.7" }]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.7" },
+    { name = "python-dotenv", specifier = ">=1.0" },
+]
+
+[[package]]
+name = "vigilo-identity"
+version = "0.1.0"
+source = { editable = "packages/identity" }
+dependencies = [
+    { name = "vigilo-core" },
+    { name = "vigilo-persistence" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vigilo-core", editable = "packages/core" },
+    { name = "vigilo-persistence", editable = "packages/persistence" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest-asyncio", specifier = ">=0.24" }]
 
 [[package]]
 name = "vigilo-persistence"
