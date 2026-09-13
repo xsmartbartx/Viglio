@@ -6,8 +6,8 @@ from vigilo_core.evidence import EvidenceBundle, HttpObservation
 from vigilo_core.models import Verdict
 
 
-def test_registry_has_twenty_checks_with_unique_ids():
-    assert len(REGISTRY) == 20
+def test_registry_has_fifty_seven_checks_with_unique_ids():
+    assert len(REGISTRY) == 57
     ids = [c.manifest.check_id for c in REGISTRY]
     assert len(ids) == len(set(ids))
 

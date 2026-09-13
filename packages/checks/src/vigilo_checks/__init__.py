@@ -3,11 +3,21 @@
 tests/test_import_boundary.py, not just documented.
 """
 
-from vigilo_checks import hdr, tls
+from vigilo_checks import cli, cmp, dat, dep, exp, hdr, leg, ses, tls
 from vigilo_checks.findings import run_registry, to_findings
 from vigilo_checks.registry import Check, CheckResult, get_header, requires
 
-REGISTRY: list[Check] = [*hdr.CHECKS, *tls.CHECKS]
+REGISTRY: list[Check] = [
+    *hdr.CHECKS,
+    *tls.CHECKS,
+    *ses.CHECKS,
+    *leg.CHECKS,
+    *dep.CHECKS,
+    *cmp.CHECKS,
+    *cli.CHECKS,
+    *exp.CHECKS,
+    *dat.CHECKS,
+]
 
 __all__ = [
     "Check",
