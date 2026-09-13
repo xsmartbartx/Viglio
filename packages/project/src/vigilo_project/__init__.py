@@ -8,8 +8,8 @@ from __future__ import annotations
 from vigilo_project.models import OwnershipProof, Project
 from vigilo_project.repository import (
     create_target,
-    get_ownership_proof,
     get_or_create_default_project,
+    get_ownership_proof,
     get_target,
     get_target_by_origin,
     has_valid_ownership_proof,

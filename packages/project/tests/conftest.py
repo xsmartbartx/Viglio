@@ -4,11 +4,11 @@ from collections.abc import AsyncIterator
 
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
-from vigilo_persistence import session_scope
-from vigilo_persistence.testing import temporary_schema
 
 import vigilo_identity.orm  # noqa: F401  — accounts table, referenced by projects' FK
 import vigilo_project.orm  # noqa: F401  — registers Project/Target/OwnershipProof on Base.metadata
+from vigilo_persistence import session_scope
+from vigilo_persistence.testing import temporary_schema
 
 
 @pytest_asyncio.fixture

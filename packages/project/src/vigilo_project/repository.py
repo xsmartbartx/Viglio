@@ -11,8 +11,8 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from vigilo_core.models import Target, Tier, VerificationMethod
 
+from vigilo_core.models import Target, Tier, VerificationMethod
 from vigilo_project.errors import OwnershipProofNotFound
 from vigilo_project.models import OwnershipProof, Project
 from vigilo_project.orm import OwnershipProofRow, ProjectRow, TargetRow

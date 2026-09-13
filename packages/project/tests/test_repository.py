@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from vigilo_core.models import Tier, VerificationMethod
 from vigilo_identity.repository import get_or_create_account
-
 from vigilo_project.orm import OwnershipProofRow
 from vigilo_project.repository import (
     create_target,
