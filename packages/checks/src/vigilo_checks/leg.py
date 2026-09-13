@@ -19,17 +19,22 @@ from vigilo_checks.registry import Check, CheckResult, requires
 
 
 def _link_pattern(*keywords: str) -> re.Pattern[str]:
+    """Matches either an `href` value containing one of `keywords` (e.g.
+    `href="/privacy-policy"`) or an anchor's visible text containing one
+    (e.g. `<a href="/legal">Privacy Policy</a>`)."""
     alternation = "|".join(keywords)
-    return re.compile(
-        rf'<a\b[^>]*(?:href|>[^<]*)[^>]*(?:{alternation})[^<]*(?:</a>|>)',
-        re.IGNORECASE,
-    )
+    href_form = rf'href\s*=\s*["\'][^"\']*(?:{alternation})[^"\']*["\']'
+    text_form = rf"<a\b[^>]*>[^<]*(?:{alternation})[^<]*</a>"
+    return re.compile(rf"(?:{href_form})|(?:{text_form})", re.IGNORECASE)
 
 
 _PRIVACY_PATTERN = _link_pattern("privacy")
 _TERMS_PATTERN = _link_pattern("terms", "tos")
 _COOKIE_PATTERN = _link_pattern("cookie")
-_CONTACT_PATTERN = re.compile(r'mailto:|<a\b[^>]*(?:href|>[^<]*)[^>]*contact', re.IGNORECASE)
+_CONTACT_PATTERN = re.compile(
+    r'mailto:|href\s*=\s*["\'][^"\']*contact[^"\']*["\']|<a\b[^>]*>[^<]*contact[^<]*</a>',
+    re.IGNORECASE,
+)
 
 
 def _has_link(body: str, pattern: re.Pattern[str]) -> bool:
