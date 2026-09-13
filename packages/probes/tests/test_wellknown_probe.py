@@ -1,4 +1,5 @@
 import httpx
+
 from vigilo_probes.wellknown_probe import run_wellknown
 
 _FAKE_DNS = {"safe.test": ["93.184.216.34"], "empty.test": ["93.184.216.34"]}
@@ -24,7 +25,9 @@ def _handler_mixed(request: httpx.Request) -> httpx.Response:
 
 async def test_all_paths_present():
     result = await run_wellknown(
-        "https://safe.test", resolver=_fake_resolver, transport=httpx.MockTransport(_handler_all_present)
+        "https://safe.test",
+        resolver=_fake_resolver,
+        transport=httpx.MockTransport(_handler_all_present),
     )
     assert result.security_txt_present is True
     assert result.robots_txt_present is True
@@ -57,7 +60,9 @@ async def test_connection_error_treated_as_absent():
         raise httpx.ConnectError("simulated connection failure")
 
     result = await run_wellknown(
-        "https://safe.test", resolver=_fake_resolver, transport=httpx.MockTransport(_raising_handler)
+        "https://safe.test",
+        resolver=_fake_resolver,
+        transport=httpx.MockTransport(_raising_handler),
     )
     assert result.security_txt_present is False
     assert result.robots_txt_present is False
