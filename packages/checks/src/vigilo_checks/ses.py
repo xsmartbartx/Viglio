@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import re
 
+from vigilo_checks.registry import Check, CheckResult, requires
 from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.models import CheckManifest, Confidence, Severity, Tier, Verdict
-from vigilo_checks.registry import Check, CheckResult, requires
 
 _SESSION_ID_IN_URL_PATTERN = re.compile(
     r'(?:href|src)\s*=\s*["\'][^"\']*[?&]'

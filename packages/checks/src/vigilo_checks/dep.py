@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import re
 
+from vigilo_checks.registry import Check, CheckResult, requires
 from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.models import CheckManifest, Confidence, Severity, Tier, Verdict
-from vigilo_checks.registry import Check, CheckResult, requires
 
 _SCRIPT_TAG_PATTERN = re.compile(r"<script\b([^>]*)\bsrc\s*=\s*[\"']([^\"']+)[\"']([^>]*)>", re.IGNORECASE)
 _MAX_THIRD_PARTY_ORIGINS = 8

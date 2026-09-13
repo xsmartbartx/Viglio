@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import re
 
+from vigilo_checks.registry import Check, CheckResult, requires
 from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.models import CheckManifest, Confidence, Severity, Tier, Verdict
-from vigilo_checks.registry import Check, CheckResult, requires
 
 _TRACKER_PATTERN = re.compile(
     r"google-analytics\.com|googletagmanager\.com|gtag\(|connect\.facebook\.net|fbq\("

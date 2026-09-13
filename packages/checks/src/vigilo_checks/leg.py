@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import re
 
+from vigilo_checks.registry import Check, CheckResult, requires
 from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.models import CheckManifest, Confidence, Severity, Tier, Verdict
-from vigilo_checks.registry import Check, CheckResult, requires
 
 
 def _link_pattern(*keywords: str) -> re.Pattern[str]:
