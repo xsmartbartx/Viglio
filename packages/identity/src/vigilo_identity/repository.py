@@ -20,7 +20,8 @@ async def get_account_by_id(session: AsyncSession, account_id: object) -> Accoun
 
 
 async def get_account_by_clerk_id(session: AsyncSession, clerk_user_id: str) -> Account | None:
-    result = await session.execute(select(AccountRow).where(AccountRow.clerk_user_id == clerk_user_id))
+    stmt = select(AccountRow).where(AccountRow.clerk_user_id == clerk_user_id)
+    result = await session.execute(stmt)
     row = result.scalar_one_or_none()
     return Account.model_validate(row) if row else None
 

@@ -37,6 +37,20 @@ class Tier(StrEnum):
     ACTIVE = "active"
 
 
+class VerificationMethod(StrEnum):
+    """The four ownership-proof methods ADR-0003 recognizes. Lives in Core
+    (rather than `security` or `project`) because both `packages/project`
+    (which persists an `OwnershipProof.method`) and `packages/security`
+    (which dispatches `verify_ownership()` on it) need the same values
+    without depending on each other — matching the existing pattern for
+    `Tier`/`Severity`/`Confidence`."""
+
+    DNS_TXT = "dns_txt"
+    WELLKNOWN_FILE = "wellknown_file"
+    META_TAG = "meta_tag"
+    EMAIL = "email"
+
+
 class Verdict(StrEnum):
     PASSED = "passed"
     FAILED = "failed"
