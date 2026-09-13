@@ -11,3 +11,13 @@ class EgressDenied(StructuredError):
 
     def __init__(self, message: str, **context: Any) -> None:
         super().__init__(ErrorCode.EGRESS_DENIED, message, **context)
+
+
+class VerificationIOError(StructuredError):
+    """Raised when a `verify_ownership()` method suffers a hard I/O failure
+    (DNS lookup error, connection reset) — distinct from a normal
+    `VerificationResult(verified=False)`, which means "checked, not present
+    yet," not "couldn't check." Always carries code VERIFICATION_IO_FAILED."""
+
+    def __init__(self, message: str, **context: Any) -> None:
+        super().__init__(ErrorCode.VERIFICATION_IO_FAILED, message, **context)
