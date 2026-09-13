@@ -16,24 +16,21 @@ from typing import Any
 
 from vigilo_checks import REGISTRY, run_registry
 from vigilo_core.evidence import EvidenceBundle
-from vigilo_core.logging import LogEvent
+from vigilo_core.logging import LogEvent, log
 from vigilo_core.logging import Severity as LogSeverity
-from vigilo_core.logging import log
 from vigilo_core.models import Finding, Score, Verdict, VerificationMethod
 from vigilo_core.validation import ValidationError
 from vigilo_integrations.errors import MailDeliveryFailed, ObjectStoreError
 from vigilo_integrations.mail import send_transactional_email
 from vigilo_integrations.storage import put_evidence_bundle
+from vigilo_orchestrator.service import advance, get_scan_job, record_scan_result
 from vigilo_persistence import session_scope
 from vigilo_probes import run_probes
-from vigilo_project.repository import get_target, get_ownership_proof, mark_proof_verified
+from vigilo_project.repository import get_ownership_proof, get_target, mark_proof_verified
 from vigilo_scoring import score as compute_score
 from vigilo_security.audit import AuditEvent, audit
 from vigilo_security.exceptions import EgressDenied
 from vigilo_security.ownership import verify_ownership
-
-from vigilo_orchestrator.models import ScanJob
-from vigilo_orchestrator.service import advance, get_scan_job, record_scan_result
 
 REGISTRY_VERSION = "0.1"
 _MODULE = "vigilo_orchestrator"

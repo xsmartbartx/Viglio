@@ -12,8 +12,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from vigilo_core.models import Finding, Score, Tier
 
+from vigilo_core.models import Finding, Score, Tier
 from vigilo_orchestrator.errors import InvalidScanTransition, ScanJobNotFound
 from vigilo_orchestrator.models import Scan, ScanJob
 from vigilo_orchestrator.orm import FindingRow, ScanJobRow, ScanRow
