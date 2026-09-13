@@ -67,7 +67,7 @@ def test_run_prints_json_for_a_scan(_fake_scan, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["target_origin"] == "https://safe.test"
     assert "score" in payload
-    assert len(payload["findings"]) == 20
+    assert len(payload["findings"]) == 57
 
 
 def test_run_prints_human_summary_by_default(_fake_scan, capsys):
