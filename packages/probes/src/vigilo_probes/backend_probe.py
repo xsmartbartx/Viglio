@@ -28,6 +28,7 @@ import re
 from urllib.parse import urlsplit
 
 import httpx
+
 from vigilo_core.evidence import (
     BackendObservation,
     BundleObservation,
@@ -169,7 +170,8 @@ async def run_backend_checks(
                 continue
 
             headers = {"apikey": key} if key else {}
-            status, error, body = await _probe_url(client, f"{project_url}/rest/v1/", resolver, headers)
+            rest_url = f"{project_url}/rest/v1/"
+            status, error, body = await _probe_url(client, rest_url, resolver, headers)
             indicates_open = status == 200 and ('"paths"' in body or '"definitions"' in body)
             detected.append(
                 DetectedBackend(
@@ -204,7 +206,8 @@ async def run_backend_checks(
 
         for bucket in _detect_s3_buckets(text):
             bucket_root = f"https://{bucket}.s3.amazonaws.com"
-            status, error, _body = await _probe_url(client, f"{bucket_root}/?list-type=2", resolver, {})
+            listing_url = f"{bucket_root}/?list-type=2"
+            status, error, _body = await _probe_url(client, listing_url, resolver, {})
             detected.append(
                 DetectedBackend(
                     provider="s3",
