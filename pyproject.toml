@@ -73,6 +73,11 @@ asyncio_mode = "auto"
 # which asyncpg raises on ("attached to a different loop").
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+# Phase 3 added several packages that each have their own test_repository.py
+# etc. with no __init__.py in tests/ (matching the existing flat-file
+# convention) — importlib mode lets pytest tell same-named files in
+# different packages apart without requiring one.
+addopts = "--import-mode=importlib"
 testpaths = [
     "packages/core/tests",
     "packages/security/tests",
