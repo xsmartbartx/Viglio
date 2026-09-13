@@ -62,28 +62,34 @@ prompt can act on.
        ├─ refactor.prompt.md
        └─ check-authoring.prompt.md   # new — authoring a single check
 apps/
-  ├─ web/                             # Next.js frontend
+  ├─ web/                             # Next.js frontend (Phase 4)
   ├─ api/                             # FastAPI control plane
-  └─ scanner/                         # egress workers (isolated network zone)
+  ├─ cli/                             # `vigilo scan <url>`
+  └─ scanner/                         # ARQ worker (isolated network zone — the only
+                                       #   control-plane process that imports probes)
 packages/
-  ├─ core/                            # models, validation, logging, errors
+  ├─ core/                            # models, validation, logging, errors, config
+  ├─ persistence/                     # SQLAlchemy Base, async engine/session, Alembic
+  ├─ security/                        # egress guard, scan authorization, ownership
+                                       #   verification, audit trail
+  ├─ identity/                        # accounts, Clerk mapping
+  ├─ project/                         # projects, targets, ownership proofs
   ├─ probes/                          # evidence collectors
   ├─ checks/                          # pure check functions + manifests
   ├─ scoring/                         # deterministic score model
-  ├─ reporting/                       # HTML/PDF/badge rendering
-  └─ mcp/                             # MCP server
+  ├─ orchestrator/                    # scan lifecycle: state machine + ARQ jobs
+  ├─ integrations/                    # Postmark (email), MinIO/S3 (object storage)
+  ├─ reporting/                       # HTML/PDF/badge rendering (Phase 5)
+  └─ mcp/                             # MCP server (Phase 9)
 docs/
   ├─ vision.md
   ├─ architecture.md
   ├─ modules.md
-  ├─ scan-engine.md
   ├─ check-catalog.md
-  ├─ data-flow.md
   ├─ data-model.md
   ├─ api.md
   ├─ security.md
   ├─ build-roadmap.md
-  ├─ build-workflow.md
   └─ adr/
        ├─ ADR-0001-core-architecture.md
        ├─ ADR-0002-product-scope-and-stack.md

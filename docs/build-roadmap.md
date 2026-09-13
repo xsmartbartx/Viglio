@@ -75,17 +75,36 @@ service-role-key check, end to end).
 **Running total: 57 of the ~64-check v0.1 target** — the remaining 7 are the
 active-tier `EXP` checks deferred to Phase 6 below.
 
-## Phase 3 — Control plane
+## Phase 3 — Control plane ✅
 
-`apps/api` grows real endpoints; PostgreSQL + SQLAlchemy + Alembic;
-`identity`, `project` modules; `Account`/`Target`/`OwnershipProof` persistence;
-`resolve_authorization()` and `verify_ownership()` implemented per ADR-0003
-(fail-closed, audit-trail-first); anonymous free-scan path with email
-capture; Redis + ARQ job queue between API and scan workers.
+`apps/api` grew real endpoints (`/v1/scans`, `/v1/targets`, `/v1/me` —
+`docs/api.md`); PostgreSQL + SQLAlchemy 2.0 (async) + Alembic, via a new
+`packages/persistence` package; new `packages/identity` (Accounts, Clerk
+mapping) and `packages/project` (Projects, Targets, OwnershipProofs)
+modules (`docs/modules.md` §2a/§2b); `resolve_authorization()` and
+`verify_ownership()` implemented in `packages/security` per ADR-0003
+(fail-closed, audit-trail-first, both build-blocking-tested); a real
+`packages/orchestrator` (state machine + ARQ task bodies, replacing
+`packages/probes`' Phase-1 CLI-only convenience wrapper); a new
+`packages/integrations` (Postmark email, MinIO/S3 object storage); a new
+`apps/scanner` app running the ARQ worker — the only process that imports
+`vigilo_probes` from the control-plane side, enforced by
+`apps/api/tests/test_no_egress_imports.py`. Clerk chosen for managed auth,
+Postmark for transactional email (both recorded in the ADR-0003 Phase 3
+addendum alongside the append-only-trigger decision).
 
 **Done when:** an unauthenticated visitor can scan a public site and receive
 a report by email, and a target owner can complete DNS/file/meta-tag
-verification and see their target upgrade to the active tier.
+verification and see their target upgrade to the active tier. Verified: the
+anonymous scan path (`POST /v1/scans` → `resolve_authorization` →
+`ScanJob` → ARQ `run_scan_job` → probes → checks → scoring → object
+storage → Postmark) and the ownership-verification path (`POST
+/v1/targets` → `POST .../verification` → place the DNS/file/meta-tag
+record → `POST .../check` → ARQ `verify_ownership_job` →
+`Target.verification_status` flips to `active`) both run end to end
+locally against real Postgres/Redis/MinIO, with the append-only audit
+trigger and both build-blocking network-safety suites
+(`egress-guard-suite`, `ownership-verification-suite`) green in CI.
 
 ## Phase 4 — Report experience
 
