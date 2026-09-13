@@ -57,12 +57,15 @@ def _find_and_fingerprint(pattern: re.Pattern[str], text: str, kind: str) -> str
 
 
 def _secret_check(pattern: re.Pattern[str], kind: str, label: str):
+    article = "an" if label[0].lower() in "aeiou" else "a"
+
     @requires("bundle")
     def _check(bundle: EvidenceBundle) -> CheckResult:
         text = _all_script_text(bundle.bundle)
         fingerprint = _find_and_fingerprint(pattern, text, kind)
         if fingerprint:
-            return CheckResult(Verdict.FAILED, f"a {label} pattern was found in a fetched script", fingerprint)
+            detail = f"{article} {label} pattern was found in a fetched script"
+            return CheckResult(Verdict.FAILED, detail, fingerprint)
         return CheckResult(Verdict.PASSED, f"no {label} pattern found in fetched scripts")
 
     return _check
