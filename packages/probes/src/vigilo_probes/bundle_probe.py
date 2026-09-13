@@ -14,13 +14,15 @@ root page fetch already follows.
 from __future__ import annotations
 
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import httpx
+
 from vigilo_core.evidence import BundleObservation, FetchedScript, HttpObservation
 from vigilo_core.validation import ValidationError
 from vigilo_probes.http_probe import build_pinned_url
-from vigilo_security.egress_guard import EgressDenied, Resolver, validate_and_pin
+from vigilo_security import EgressDenied
+from vigilo_security.egress_guard import Resolver, validate_and_pin
 
 _SCRIPT_SRC_PATTERN = re.compile(r'<script\b[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE)
 _MAX_SCRIPTS = 5
@@ -75,8 +77,6 @@ async def _fetch_one(
 def _path_of(url: str) -> str:
     # Preserve the script's own path+query when connecting to the pinned IP —
     # build_pinned_url only supplies scheme://host:port, the path is ours to add.
-    from urllib.parse import urlsplit
-
     parts = urlsplit(url)
     path = parts.path or "/"
     return f"{path}?{parts.query}" if parts.query else path
