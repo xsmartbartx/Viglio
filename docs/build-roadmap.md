@@ -42,16 +42,38 @@ real, owned/public site produces at least one defensible, evidence-backed
 finding (verified live against `example.com`: 6 findings, all TLS checks ran
 and passed against the real handshake).
 
-## Phase 2 — Registry to v0.1
+## Phase 2 — Registry to v0.1 ✅
 
-Fill out `CLI` (client-side exposure), `EXP` (surface exposure), `SES`
-(cookies/sessions), `DEP` (dependencies), `LEG` (legal documents) categories
-to ~64 checks total. Check-descriptor format frozen (`CheckManifest` in
-`packages/core/src/vigilo_core/models.py` already matches this shape).
-`docs/check-catalog.md` generated from the descriptors, not hand-maintained.
+Filled out `SES` (6), `LEG` (4), `DEP` (4), `CMP` (4), `CLI` (10), `EXP` (5
+— the passive subset only, see below), `DAT` (4) — 37 new checks, 57 total.
+Three new probes: `wellknown_probe` (`.well-known` presence, passive per
+`docs/vision.md`), `bundle_probe` (fetches linked `<script src>` content,
+egress-guarded per script, same rule as the root page), `backend_probe`
+(detects exposed Supabase/Firebase/S3/GCS credentials and makes one bounded,
+egress-guarded reachability request per discovery — ADR-0003 addendum
+records why this runs at passive tier). `EvidenceBundle` gained
+`bundle`/`wellknown`/`backends` fields. Check-descriptor format unchanged
+(`CheckManifest` already matched this shape from Phase 1).
 
-**Done when:** every check has a golden-target fixture pair (known-good,
-known-bad) and a primary-standard reference.
+**`EXP`'s full v0.1 scope (12 checks) is not all here.** Path/directory
+enumeration, backup-file and debug-route detection require the Tier-1-only
+`paths` probe (`docs/modules.md` §3) and verified ownership, which doesn't
+exist until Phase 3 — see the ADR-0003 addendum. The 5 checks here (four
+`.well-known` presence checks plus homepage verbose-error detection) are
+the genuinely passive subset; the other 7 move to Phase 6.
+
+**Done when:** every check has fixtures (pass/fail/inconclusive, inline in
+its test file) and a primary-standard reference — confirmed for all 57;
+`docs/check-catalog.md` generated from the descriptors via
+`scripts/generate_check_catalog.py`; the backend probe's SSRF safety suite
+(`packages/probes/tests/test_backend_probe_ssrf.py`) is green and
+build-blocking, same standard as Phase 0's egress-guard suite; the golden
+fixtures demonstrate the full registry (`good-config.json` scores 100/A,
+`bad-config.json` scores 0/F including `VG-DAT-001`, the flagship exposed
+service-role-key check, end to end).
+
+**Running total: 57 of the ~64-check v0.1 target** — the remaining 7 are the
+active-tier `EXP` checks deferred to Phase 6 below.
 
 ## Phase 3 — Control plane
 
@@ -89,9 +111,12 @@ still ships a complete report from static remediation templates.
 ## Phase 6 — Active tier
 
 Ownership-gated active checks: `APP` (application logic), `AUT`
-(authentication surface), `INF` (infrastructure/DNS), `DAT` (data-platform
-posture). Request-budget enforcement (§8.5 of the Prooflight doc). Registry
-grows toward ~120 checks.
+(authentication surface), `INF` (infrastructure/DNS), plus the 7 `EXP`
+checks deferred from Phase 2 (directory listing, backup artefacts, debug
+routes, repository metadata paths — the `paths` probe, Tier 1 only per
+ADR-0003). `DAT` (data-platform posture) already shipped at passive tier in
+Phase 2 — see the ADR-0003 addendum for why. Request-budget enforcement
+(§8.5 of the Prooflight doc). Registry grows toward ~120 checks.
 
 **Done when:** it is proven by test — not just by code review — that no
 active-tier check is reachable against an unverified target under any code

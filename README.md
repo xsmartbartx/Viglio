@@ -166,15 +166,22 @@ Stop the local infra with `docker compose down` when done.
 
 ## Status
 
-**Phase 1 (Engine core) complete.** `packages/core` (domain models, evidence types,
-validation, logging, errors, redaction, config), `packages/security`'s egress guard,
-`packages/probes` (pinned HTTP/TLS collection), `packages/checks` (20 `HDR`/`TLS`
-checks), `packages/scoring` (deterministic scoring) and `apps/cli` (`vigilo scan
-<url>`) are implemented and tested — a real scan of a live target works end to end.
-`apps/api` is still a health/version bootstrap only. No persistence, no frontend, no
-billing yet — see `docs/build-roadmap.md` for what's next. All documents in `/docs`
-are authoritative for implementation and must be updated by the responsible agent
-whenever behaviour changes.
+**Phase 2 (Registry to v0.1) complete.** The catalogue has grown to **57 checks**
+across 9 categories — `HDR`, `TLS`, `SES`, `LEG`, `DEP`, `CMP`, `CLI`, `EXP`
+(passive subset), `DAT` (the flagship exposed-backend-credential check) — see
+`docs/check-catalog.md` (generated, not hand-maintained). `packages/probes` gained
+three probes: `wellknown_probe`, `bundle_probe` (fetches linked scripts, every one
+egress-guarded), and `backend_probe` (detects and safely reachability-tests exposed
+Supabase/Firebase/S3/GCS credentials — its SSRF safety suite is build-blocking, same
+standard as the core egress guard). `packages/core`, `packages/security`,
+`packages/scoring` and `apps/cli` (`vigilo scan <url>`) round out the engine — a real
+scan of a live target works end to end, and the golden fixtures demonstrate the full
+registry (`good-config.json` scores 100/A, `bad-config.json` scores 0/F). `apps/api` is
+still a health/version bootstrap only. No persistence, no frontend, no billing, and
+no active-tier scanning yet (that needs Phase 3's ownership verification) — see
+`docs/build-roadmap.md` for what's next. All documents in `/docs` are authoritative
+for implementation and must be updated by the responsible agent whenever behaviour
+changes.
 
 ## Licence
 
