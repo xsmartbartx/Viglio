@@ -164,7 +164,9 @@ uv run alembic -c packages/persistence/alembic.ini upgrade head   # create the s
 uv run pytest -q                # full test suite, including both build-blocking suites
 uv run ruff check .
 uv run vigilo scan https://example.com     # a real, live scan end to end, no persistence
-uv run arq vigilo_scanner.worker.WorkerSettings --app-dir apps/scanner/src  # the ARQ worker
+uv run arq vigilo_scanner.worker.WorkerSettings   # the ARQ worker (no --app-dir — every
+                                                   # workspace package installs into the
+                                                   # one shared .venv `uv sync` builds)
 uv run uvicorn vigilo_api.main:app --reload --app-dir apps/api/src         # the control plane
 ```
 
