@@ -5,7 +5,15 @@ from pathlib import Path
 
 import vigilo_orchestrator.jobs as jobs
 from vigilo_core.evidence import EvidenceBundle
-from vigilo_core.models import Tier, VerificationMethod
+from vigilo_core.models import (
+    Confidence,
+    Finding,
+    Score,
+    Severity,
+    Tier,
+    Verdict,
+    VerificationMethod,
+)
 from vigilo_identity.repository import get_or_create_account
 from vigilo_integrations.errors import MailDeliveryFailed
 from vigilo_orchestrator.reports import get_or_create_pdf_report, get_report
@@ -160,3 +168,96 @@ async def test_verify_ownership_job_does_nothing_on_failure(db_schema, monkeypat
         reloaded = await get_target(session, target.id)
     assert reloaded is not None
     assert reloaded.verification_status == Tier.PASSIVE
+
+
+async def _make_completed_scan(email: str = "owner4@example.com"):
+    job, _target = await _make_authorized_job(email)
+    async with session_scope() as session:
+        job = await advance(session, job.id, "probing")
+        job = await advance(session, job.id, "evaluating")
+        job = await advance(session, job.id, "scoring")
+
+        findings = [
+            Finding(
+                check_id="VG-HDR-001",
+                verdict=Verdict.FAILED,
+                severity=Severity.HIGH,
+                confidence=Confidence.CONFIRMED,
+                title="HSTS enforced",
+                summary="No HSTS header present.",
+                fingerprint="fp1",
+            )
+        ]
+        score = Score(value=72.0, grade="C", registry_version="0.1")
+        scan = await record_scan_result(session, job, findings, score, duration_ms=10)
+        await advance(session, job.id, "reporting")
+        await advance(session, job.id, "complete")
+    return scan
+
+
+async def test_render_report_pdf_job_completes_and_stores_the_pdf(db_schema, monkeypatch):
+    scan = await _make_completed_scan()
+    async with session_scope() as session:
+        report, _should_render = await get_or_create_pdf_report(session, scan.id)
+
+    stored = {}
+
+    async def fake_render_pdf(scan_job_id, **kwargs):
+        return b"%PDF-1.4 fake"
+
+    async def fake_put_report_pdf(report_id, content):
+        stored["report_id"] = report_id
+        stored["content"] = content
+
+    monkeypatch.setattr(jobs, "render_pdf", fake_render_pdf)
+    monkeypatch.setattr(jobs, "put_report_pdf", fake_put_report_pdf)
+
+    await jobs.render_report_pdf_job({}, str(report.id))
+
+    async with session_scope() as session:
+        final = await get_report(session, report.id)
+    assert final is not None
+    assert final.status == "complete"
+    assert final.artefact_uri == str(report.id)
+    assert stored["report_id"] == str(report.id)
+    assert stored["content"] == b"%PDF-1.4 fake"
+
+
+async def test_render_report_pdf_job_marks_failed_on_render_error(db_schema, monkeypatch):
+    scan = await _make_completed_scan()
+    async with session_scope() as session:
+        report, _should_render = await get_or_create_pdf_report(session, scan.id)
+
+    async def failing_render_pdf(scan_job_id, **kwargs):
+        raise PdfRenderError("simulated render failure")
+
+    monkeypatch.setattr(jobs, "render_pdf", failing_render_pdf)
+
+    await jobs.render_report_pdf_job({}, str(report.id))
+
+    async with session_scope() as session:
+        final = await get_report(session, report.id)
+    assert final is not None
+    assert final.status == "failed"
+
+
+async def test_render_report_pdf_job_is_a_noop_for_a_non_pending_report(db_schema, monkeypatch):
+    scan = await _make_completed_scan()
+    async with session_scope() as session:
+        report, _should_render = await get_or_create_pdf_report(session, scan.id)
+
+    async def should_not_be_called(scan_job_id, **kwargs):
+        raise AssertionError("render_pdf should not have been called")
+
+    monkeypatch.setattr(jobs, "render_pdf", should_not_be_called)
+
+    # First run completes it (via the success path, but we monkeypatch again
+    # to avoid depending on ordering with the test above).
+    async def fake_render_pdf(scan_job_id, **kwargs):
+        return b"%PDF-1.4 fake"
+
+    monkeypatch.setattr(jobs, "render_pdf", fake_render_pdf)
+    await jobs.render_report_pdf_job({}, str(report.id))
+
+    monkeypatch.setattr(jobs, "render_pdf", should_not_be_called)
+    await jobs.render_report_pdf_job({}, str(report.id))  # should return early, no error
