@@ -62,6 +62,7 @@ __all__ = [
     "get_or_create_html_report",
     "get_or_create_pdf_report",
     "get_report",
+    "get_report_pdf_bytes",
     "mark_report_complete",
     "mark_report_failed",
     "create_share_link",

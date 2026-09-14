@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from vigilo_core.models import Confidence, Evidence, Finding, Score, Severity, Tier, Verdict
 from vigilo_identity.repository import get_or_create_account
+from vigilo_integrations.storage import put_report_pdf
 from vigilo_orchestrator.errors import ReportNotFound, ShareLinkNotFound
 from vigilo_orchestrator.reports import (
     create_share_link,
@@ -13,6 +14,7 @@ from vigilo_orchestrator.reports import (
     get_or_create_html_report,
     get_or_create_pdf_report,
     get_report,
+    get_report_pdf_bytes,
     get_share_link,
     list_share_links,
     mark_report_complete,
@@ -134,6 +136,30 @@ async def test_mark_report_complete_sets_artefact_uri_and_generated_at(
     assert completed.status == "complete"
     assert completed.artefact_uri == str(report.id)
     assert completed.generated_at is not None
+
+
+async def test_get_report_pdf_bytes_round_trips_through_object_storage(
+    db_session: AsyncSession,
+) -> None:
+    scan = await _make_scan(db_session)
+    report, _ = await get_or_create_pdf_report(db_session, scan.id)
+    await put_report_pdf(str(report.id), b"%PDF-1.4 fake")
+    await mark_report_complete(db_session, report.id)
+
+    content = await get_report_pdf_bytes(db_session, report.id)
+
+    assert content == b"%PDF-1.4 fake"
+
+
+async def test_get_report_pdf_bytes_raises_when_not_complete(db_session: AsyncSession) -> None:
+    scan = await _make_scan(db_session)
+    report, _ = await get_or_create_pdf_report(db_session, scan.id)
+
+    try:
+        await get_report_pdf_bytes(db_session, report.id)
+        raise AssertionError("expected ReportNotFound")
+    except ReportNotFound:
+        pass
 
 
 async def test_mark_report_complete_on_an_unknown_report_raises(db_session: AsyncSession) -> None:
