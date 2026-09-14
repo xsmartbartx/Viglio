@@ -24,6 +24,7 @@ from vigilo_core.errors import ErrorCode, StructuredError
 from vigilo_integrations.errors import ObjectStoreError
 
 _KEY_PREFIX = "evidence/"
+_REPORT_KEY_PREFIX = "reports/"
 
 
 @lru_cache(maxsize=1)
@@ -44,26 +45,44 @@ def _key(bundle_id: str) -> str:
     return f"{_KEY_PREFIX}{bundle_id}.json"
 
 
-def _put_sync(bundle_id: str, content: bytes) -> None:
-    cfg = config()
-    _client().put_object(Bucket=cfg.object_store_bucket, Key=_key(bundle_id), Body=content)
+def _report_key(report_id: str) -> str:
+    return f"{_REPORT_KEY_PREFIX}{report_id}.pdf"
 
 
-def _get_sync(bundle_id: str) -> bytes:
+def _put_sync(key: str, content: bytes) -> None:
     cfg = config()
-    obj = _client().get_object(Bucket=cfg.object_store_bucket, Key=_key(bundle_id))
+    _client().put_object(Bucket=cfg.object_store_bucket, Key=key, Body=content)
+
+
+def _get_sync(key: str) -> bytes:
+    cfg = config()
+    obj = _client().get_object(Bucket=cfg.object_store_bucket, Key=key)
     return obj["Body"].read()
 
 
 async def put_evidence_bundle(bundle_id: str, content: bytes) -> None:
     try:
-        await asyncio.to_thread(_put_sync, bundle_id, content)
+        await asyncio.to_thread(_put_sync, _key(bundle_id), content)
     except (BotoCoreError, ClientError) as exc:
         raise ObjectStoreError("failed to store evidence bundle", bundle_id=bundle_id) from exc
 
 
 async def get_evidence_bundle(bundle_id: str) -> bytes:
     try:
-        return await asyncio.to_thread(_get_sync, bundle_id)
+        return await asyncio.to_thread(_get_sync, _key(bundle_id))
     except (BotoCoreError, ClientError) as exc:
         raise ObjectStoreError("failed to fetch evidence bundle", bundle_id=bundle_id) from exc
+
+
+async def put_report_pdf(report_id: str, content: bytes) -> None:
+    try:
+        await asyncio.to_thread(_put_sync, _report_key(report_id), content)
+    except (BotoCoreError, ClientError) as exc:
+        raise ObjectStoreError("failed to store report pdf", report_id=report_id) from exc
+
+
+async def get_report_pdf(report_id: str) -> bytes:
+    try:
+        return await asyncio.to_thread(_get_sync, _report_key(report_id))
+    except (BotoCoreError, ClientError) as exc:
+        raise ObjectStoreError("failed to fetch report pdf", report_id=report_id) from exc

@@ -22,11 +22,14 @@ from vigilo_core.models import Finding, Score, Verdict, VerificationMethod
 from vigilo_core.validation import ValidationError
 from vigilo_integrations.errors import MailDeliveryFailed, ObjectStoreError
 from vigilo_integrations.mail import send_transactional_email
-from vigilo_integrations.storage import put_evidence_bundle
+from vigilo_integrations.storage import put_evidence_bundle, put_report_pdf
+from vigilo_orchestrator.reports import get_report, mark_report_complete, mark_report_failed
 from vigilo_orchestrator.service import advance, get_scan_job, record_scan_result
 from vigilo_persistence import session_scope
 from vigilo_probes import run_probes
 from vigilo_project.repository import get_ownership_proof, get_target, mark_proof_verified
+from vigilo_reporting.errors import PdfRenderError
+from vigilo_reporting.pdf import render_pdf
 from vigilo_scoring import score as compute_score
 from vigilo_security.audit import AuditEvent, audit
 from vigilo_security.exceptions import EgressDenied
@@ -206,3 +209,37 @@ async def verify_ownership_job(ctx: dict[str, Any], proof_id: str) -> None:
                 metadata={"method": proof.method, "proof_id": proof_id},
             ),
         )
+
+
+async def render_report_pdf_job(ctx: dict[str, Any], report_id: str) -> None:
+    """Navigates the live `apps/web` report page with Playwright
+    (`vigilo_reporting.render_pdf`) and stores the result. Idempotency
+    guard mirrors `run_scan_job`'s: only proceeds if the report is still
+    `pending` — `packages/orchestrator/reports.py`'s
+    `get_or_create_pdf_report()` is what decides whether to enqueue this in
+    the first place."""
+    report_uuid = uuid.UUID(report_id)
+
+    async with session_scope() as session:
+        report = await get_report(session, report_uuid)
+        if report is None or report.status != "pending":
+            return
+
+    try:
+        pdf_bytes = await render_pdf(report_id)
+        await put_report_pdf(report_id, pdf_bytes)
+    except (PdfRenderError, ObjectStoreError):
+        async with session_scope() as session:
+            await mark_report_failed(session, report_uuid)
+        log(
+            LogEvent(
+                event="report.pdf_render_failed",
+                severity=LogSeverity.ERROR,
+                module=_MODULE,
+                context={"report_id": report_id},
+            )
+        )
+        return
+
+    async with session_scope() as session:
+        await mark_report_complete(session, report_uuid)

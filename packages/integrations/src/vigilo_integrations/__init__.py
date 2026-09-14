@@ -8,7 +8,12 @@ from __future__ import annotations
 from vigilo_integrations.adapters import AdapterRequest, AdapterResponse, call
 from vigilo_integrations.errors import MailDeliveryFailed, ObjectStoreError
 from vigilo_integrations.mail import send_transactional_email
-from vigilo_integrations.storage import get_evidence_bundle, put_evidence_bundle
+from vigilo_integrations.storage import (
+    get_evidence_bundle,
+    get_report_pdf,
+    put_evidence_bundle,
+    put_report_pdf,
+)
 
 __all__ = [
     "AdapterRequest",
@@ -19,4 +24,6 @@ __all__ = [
     "send_transactional_email",
     "put_evidence_bundle",
     "get_evidence_bundle",
+    "put_report_pdf",
+    "get_report_pdf",
 ]
