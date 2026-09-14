@@ -25,6 +25,12 @@ _STATUS_BY_CODE: dict[ErrorCode, int] = {
     ErrorCode.QUOTA_EXCEEDED: 429,
     ErrorCode.OWNERSHIP_PROOF_EXPIRED: 410,
     ErrorCode.INVALID_STATE_TRANSITION: 409,
+    ErrorCode.REPORT_NOT_FOUND: 404,
+    ErrorCode.REPORT_NOT_READY: 409,
+    ErrorCode.SHARE_LINK_NOT_FOUND: 404,
+    ErrorCode.SHARE_LINK_EXPIRED: 410,
+    ErrorCode.SHARE_LINK_REVOKED: 410,
+    ErrorCode.PDF_RENDER_FAILED: 500,
 }
 
 

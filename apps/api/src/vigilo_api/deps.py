@@ -56,6 +56,19 @@ async def require_account(request: Request, session: SessionDep) -> Account:
 AccountDep = Annotated[Account, Depends(require_account)]
 
 
+async def optional_account(request: Request, session: SessionDep) -> Account | None:
+    """Missing `Authorization` header → anonymous view (`None`). A header
+    that IS present but invalid/expired still raises `401` — never silently
+    swallowed into an anonymous view, which would hide a real auth error
+    from the caller."""
+    if "Authorization" not in request.headers:
+        return None
+    return await require_account(request, session)
+
+
+OptionalAccountDep = Annotated[Account | None, Depends(optional_account)]
+
+
 async def get_queue() -> ArqRedis:
     return await get_arq_pool()
 
