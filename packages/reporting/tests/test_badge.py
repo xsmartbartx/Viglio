@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from vigilo_core.models import Score
-
 from vigilo_reporting.badge import render_badge
 
 

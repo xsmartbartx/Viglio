@@ -21,8 +21,8 @@ inject a fake one and never launch a real browser.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from vigilo_core.config import config
 
+from vigilo_core.config import config
 from vigilo_reporting.errors import PdfRenderError
 
 PdfRenderer = Callable[[str], Awaitable[bytes]]

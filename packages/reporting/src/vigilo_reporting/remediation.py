@@ -7,7 +7,6 @@ call site or the `RemediationPrompt` shape callers already depend on.
 from __future__ import annotations
 
 from vigilo_core.models import CheckManifest, Finding
-
 from vigilo_reporting.models import RemediationPrompt
 
 

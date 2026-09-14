@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from vigilo_core.config import config
 
+from vigilo_core.config import config
 from vigilo_reporting.errors import PdfRenderError
 from vigilo_reporting.pdf import render_pdf
 

@@ -18,7 +18,7 @@ from __future__ import annotations
 from vigilo_reporting.badge import render_badge
 from vigilo_reporting.builder import build_report
 from vigilo_reporting.errors import PdfRenderError
-from vigilo_reporting.models import EvidenceView, ReportDocument, ReportFinding, RemediationPrompt
+from vigilo_reporting.models import EvidenceView, RemediationPrompt, ReportDocument, ReportFinding
 from vigilo_reporting.pdf import render_pdf
 from vigilo_reporting.remediation import generate_remediation
 

@@ -12,7 +12,6 @@ from vigilo_core.models import (
     Tier,
     Verdict,
 )
-
 from vigilo_reporting.builder import build_report
 
 _GENERATED_AT = datetime(2026, 9, 14, tzinfo=UTC)
@@ -60,7 +59,9 @@ def _finding(
 
 
 def _score() -> Score:
-    return Score(value=72.0, grade="C", registry_version="0.1", counts_by_severity={Severity.HIGH: 1})
+    return Score(
+        value=72.0, grade="C", registry_version="0.1", counts_by_severity={Severity.HIGH: 1}
+    )
 
 
 def test_build_report_assembles_the_document():
@@ -101,17 +102,23 @@ def test_evidence_is_none_when_the_finding_has_none():
 
 def test_findings_are_sorted_failed_by_severity_then_passed_then_inconclusive_then_not_applicable():
     findings = [
-        _finding("VG-A", Verdict.NOT_APPLICABLE),
-        _finding("VG-B", Verdict.INCONCLUSIVE),
-        _finding("VG-C", Verdict.PASSED),
-        _finding("VG-D", Verdict.FAILED, severity=Severity.LOW),
-        _finding("VG-E", Verdict.FAILED, severity=Severity.CRITICAL),
+        _finding("VG-HDR-001", Verdict.NOT_APPLICABLE),
+        _finding("VG-HDR-002", Verdict.INCONCLUSIVE),
+        _finding("VG-HDR-003", Verdict.PASSED),
+        _finding("VG-HDR-004", Verdict.FAILED, severity=Severity.LOW),
+        _finding("VG-HDR-005", Verdict.FAILED, severity=Severity.CRITICAL),
     ]
     manifests = {f.check_id: _manifest(f.check_id) for f in findings}
 
     report = build_report("https://example.com", _score(), findings, manifests, _GENERATED_AT)
 
-    assert [f.check_id for f in report.findings] == ["VG-E", "VG-D", "VG-C", "VG-B", "VG-A"]
+    assert [f.check_id for f in report.findings] == [
+        "VG-HDR-005",
+        "VG-HDR-004",
+        "VG-HDR-003",
+        "VG-HDR-002",
+        "VG-HDR-001",
+    ]
 
 
 def test_build_report_is_idempotent_given_the_same_inputs():

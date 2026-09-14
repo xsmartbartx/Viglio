@@ -17,7 +17,6 @@ from __future__ import annotations
 from datetime import datetime
 
 from vigilo_core.models import CheckManifest, Finding, Score
-
 from vigilo_reporting.models import EvidenceView, ReportDocument, ReportFinding
 from vigilo_reporting.remediation import generate_remediation
 

@@ -97,6 +97,7 @@ testpaths = [
     "packages/project/tests",
     "packages/integrations/tests",
     "packages/orchestrator/tests",
+    "packages/reporting/tests",
     "apps/api/tests",
     "apps/cli/tests",
     "apps/scanner/tests",

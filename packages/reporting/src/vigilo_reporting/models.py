@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
+
 from vigilo_core.models import Confidence, Score, Severity, Verdict
 
 

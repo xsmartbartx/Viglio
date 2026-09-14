@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from vigilo_core.models import CheckManifest, Confidence, Finding, Severity, Tier, Verdict
-
 from vigilo_reporting.remediation import generate_remediation
 
 
