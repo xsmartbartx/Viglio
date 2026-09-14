@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from vigilo_core.config import config
-from vigilo_core.errors import StructuredError
 
 from vigilo_api.errors import handle_structured_error
 from vigilo_api.routers import accounts, reports, scans, share_links, targets
+from vigilo_core.config import config
+from vigilo_core.errors import StructuredError
 
 app = FastAPI(
     title="Vigilo API",

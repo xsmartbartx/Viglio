@@ -14,14 +14,18 @@ import uuid
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
-from vigilo_identity.models import Account
-from vigilo_orchestrator.reports import get_findings_for_scan, get_or_create_pdf_report, get_report_pdf_bytes
-from vigilo_orchestrator.service import get_scan_by_job_id, get_scan_job
-from vigilo_project.repository import get_or_create_default_project, get_target
 
 from vigilo_api.deps import OptionalAccountDep, QueueDep, SessionDep
 from vigilo_api.report_rendering import render_scan_report
 from vigilo_api.schemas import PdfStatusResponse, ScanReportResponse
+from vigilo_identity.models import Account
+from vigilo_orchestrator.reports import (
+    get_findings_for_scan,
+    get_or_create_pdf_report,
+    get_report_pdf_bytes,
+)
+from vigilo_orchestrator.service import get_scan_by_job_id, get_scan_job
+from vigilo_project.repository import get_or_create_default_project, get_target
 
 router = APIRouter(tags=["reports"])
 
@@ -56,7 +60,9 @@ async def get_scan_report(
     return response
 
 
-@router.post("/v1/scans/{scan_job_id}/report/pdf", status_code=202, response_model=PdfStatusResponse)
+@router.post(
+    "/v1/scans/{scan_job_id}/report/pdf", status_code=202, response_model=PdfStatusResponse
+)
 async def request_report_pdf(
     scan_job_id: uuid.UUID, session: SessionDep, queue: QueueDep
 ) -> PdfStatusResponse:

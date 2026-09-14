@@ -5,17 +5,18 @@ findings into the same `ScanReportResponse` shape.
 
 from __future__ import annotations
 
+from vigilo_api.schemas import ScanReportResponse
 from vigilo_checks import REGISTRY
 from vigilo_core.models import Finding, Score
 from vigilo_orchestrator.models import Scan
 from vigilo_reporting import build_report
 
-from vigilo_api.schemas import ScanReportResponse
-
 MANIFESTS_BY_CHECK_ID = {check.manifest.check_id: check.manifest for check in REGISTRY}
 
 
-def render_scan_report(target_origin: str, scan: Scan, findings: list[Finding]) -> ScanReportResponse:
+def render_scan_report(
+    target_origin: str, scan: Scan, findings: list[Finding]
+) -> ScanReportResponse:
     score = Score(
         value=scan.score,
         grade=scan.grade,
@@ -23,6 +24,11 @@ def render_scan_report(target_origin: str, scan: Scan, findings: list[Finding]) 
         counts_by_severity=scan.counts_by_severity,
     )
     document = build_report(target_origin, score, findings, MANIFESTS_BY_CHECK_ID, scan.created_at)
+    # `document.findings` are `vigilo_reporting.models.ReportFinding` instances,
+    # a distinct class from this app's own `ReportFindingResponse` even though
+    # the fields match — Pydantic v2 requires an exact instance or a dict for
+    # a nested model field, so re-validate through dicts rather than passing
+    # the reporting package's model objects directly.
     return ScanReportResponse(
         target_origin=document.target_origin,
         registry_version=document.registry_version,
@@ -30,5 +36,5 @@ def render_scan_report(target_origin: str, scan: Scan, findings: list[Finding]) 
         grade=document.score.grade,
         counts_by_severity=document.score.counts_by_severity,
         generated_at=document.generated_at,
-        findings=document.findings,
+        findings=[finding.model_dump() for finding in document.findings],
     )

@@ -11,6 +11,16 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
+
+from vigilo_api.deps import AccountDep, SessionDep
+from vigilo_api.report_rendering import render_scan_report
+from vigilo_api.schemas import (
+    ScanReportResponse,
+    ShareLinkCreate,
+    ShareLinkCreateResponse,
+    ShareLinkResponse,
+    ShareLinkRevokeResponse,
+)
 from vigilo_core.errors import ErrorCode, StructuredError
 from vigilo_identity.models import Account
 from vigilo_orchestrator.reports import (
@@ -26,16 +36,6 @@ from vigilo_orchestrator.reports import (
 )
 from vigilo_orchestrator.service import get_scan, get_scan_by_job_id, get_scan_job
 from vigilo_project.repository import get_or_create_default_project, get_target
-
-from vigilo_api.deps import AccountDep, SessionDep
-from vigilo_api.report_rendering import render_scan_report
-from vigilo_api.schemas import (
-    ScanReportResponse,
-    ShareLinkCreate,
-    ShareLinkCreateResponse,
-    ShareLinkResponse,
-    ShareLinkRevokeResponse,
-)
 
 router = APIRouter(tags=["share-links"])
 
