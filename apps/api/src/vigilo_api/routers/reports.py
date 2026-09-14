@@ -14,24 +14,16 @@ import uuid
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
-from vigilo_checks import REGISTRY
-from vigilo_core.models import Score
 from vigilo_identity.models import Account
-from vigilo_orchestrator.reports import (
-    get_findings_for_scan,
-    get_or_create_pdf_report,
-    get_report_pdf_bytes,
-)
+from vigilo_orchestrator.reports import get_findings_for_scan, get_or_create_pdf_report, get_report_pdf_bytes
 from vigilo_orchestrator.service import get_scan_by_job_id, get_scan_job
 from vigilo_project.repository import get_or_create_default_project, get_target
-from vigilo_reporting import build_report
 
 from vigilo_api.deps import OptionalAccountDep, QueueDep, SessionDep
+from vigilo_api.report_rendering import render_scan_report
 from vigilo_api.schemas import PdfStatusResponse, ScanReportResponse
 
 router = APIRouter(tags=["reports"])
-
-_MANIFESTS_BY_CHECK_ID = {check.manifest.check_id: check.manifest for check in REGISTRY}
 
 
 async def _is_owner(session: SessionDep, account: Account | None, target_id: uuid.UUID) -> bool:
@@ -58,32 +50,10 @@ async def get_scan_report(
 
     target = await get_target(session, job.target_id)
     findings = await get_findings_for_scan(session, scan.id)
-    score = Score(
-        value=scan.score,
-        grade=scan.grade,
-        registry_version=scan.registry_version,
-        counts_by_severity=scan.counts_by_severity,
-    )
-    document = build_report(
-        target.origin if target else "",
-        score,
-        findings,
-        _MANIFESTS_BY_CHECK_ID,
-        scan.created_at,
-    )
-    is_owner = await _is_owner(session, account, job.target_id)
-
-    return ScanReportResponse(
-        scan_job_id=scan_job_id,
-        is_owner=is_owner,
-        target_origin=document.target_origin,
-        registry_version=document.registry_version,
-        score=document.score.value,
-        grade=document.score.grade,
-        counts_by_severity=document.score.counts_by_severity,
-        generated_at=document.generated_at,
-        findings=document.findings,
-    )
+    response = render_scan_report(target.origin if target else "", scan, findings)
+    response.scan_job_id = scan_job_id
+    response.is_owner = await _is_owner(session, account, job.target_id)
+    return response
 
 
 @router.post("/v1/scans/{scan_job_id}/report/pdf", status_code=202, response_model=PdfStatusResponse)

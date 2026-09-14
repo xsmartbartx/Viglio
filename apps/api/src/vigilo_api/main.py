@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
-
-from vigilo_api.errors import handle_structured_error
-from vigilo_api.routers import accounts, scans, targets
+from fastapi.middleware.cors import CORSMiddleware
 from vigilo_core.config import config
 from vigilo_core.errors import StructuredError
+
+from vigilo_api.errors import handle_structured_error
+from vigilo_api.routers import accounts, reports, scans, share_links, targets
 
 app = FastAPI(
     title="Vigilo API",
@@ -15,9 +16,24 @@ app = FastAPI(
 
 app.add_exception_handler(StructuredError, handle_structured_error)
 
+# apps/web is the first browser client to ever call this API (Phase 4) — the
+# PDF-export/report/share-link routes are called directly from client
+# components. Conditional on WEB_APP_URL being set, same "works without it"
+# resilience pattern as Clerk/Postmark's config.
+_web_app_url = config().web_app_url
+if _web_app_url:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[_web_app_url],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 app.include_router(scans.router)
 app.include_router(targets.router)
 app.include_router(accounts.router)
+app.include_router(reports.router)
+app.include_router(share_links.router)
 
 
 @app.get("/healthz")

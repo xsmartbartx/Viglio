@@ -1260,11 +1260,13 @@ dependencies = [
     { name = "httpx" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "vigilo-checks" },
     { name = "vigilo-core" },
     { name = "vigilo-identity" },
     { name = "vigilo-orchestrator" },
     { name = "vigilo-persistence" },
     { name = "vigilo-project" },
+    { name = "vigilo-reporting" },
     { name = "vigilo-security" },
 ]
 
@@ -1281,11 +1283,13 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.9" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
+    { name = "vigilo-checks", editable = "packages/checks" },
     { name = "vigilo-core", editable = "packages/core" },
     { name = "vigilo-identity", editable = "packages/identity" },
     { name = "vigilo-orchestrator", editable = "packages/orchestrator" },
     { name = "vigilo-persistence", editable = "packages/persistence" },
     { name = "vigilo-project", editable = "packages/project" },
+    { name = "vigilo-reporting", editable = "packages/reporting" },
     { name = "vigilo-security", editable = "packages/security" },
 ]
 

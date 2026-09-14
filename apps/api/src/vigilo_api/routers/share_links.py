@@ -11,9 +11,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
-from vigilo_checks import REGISTRY
 from vigilo_core.errors import ErrorCode, StructuredError
-from vigilo_core.models import Score
 from vigilo_identity.models import Account
 from vigilo_orchestrator.reports import (
     create_share_link,
@@ -28,9 +26,9 @@ from vigilo_orchestrator.reports import (
 )
 from vigilo_orchestrator.service import get_scan, get_scan_by_job_id, get_scan_job
 from vigilo_project.repository import get_or_create_default_project, get_target
-from vigilo_reporting import build_report
 
 from vigilo_api.deps import AccountDep, SessionDep
+from vigilo_api.report_rendering import render_scan_report
 from vigilo_api.schemas import (
     ScanReportResponse,
     ShareLinkCreate,
@@ -40,27 +38,6 @@ from vigilo_api.schemas import (
 )
 
 router = APIRouter(tags=["share-links"])
-
-_MANIFESTS_BY_CHECK_ID = {check.manifest.check_id: check.manifest for check in REGISTRY}
-
-
-def _build_report_response(target_origin: str, scan, findings) -> ScanReportResponse:
-    score = Score(
-        value=scan.score,
-        grade=scan.grade,
-        registry_version=scan.registry_version,
-        counts_by_severity=scan.counts_by_severity,
-    )
-    document = build_report(target_origin, score, findings, _MANIFESTS_BY_CHECK_ID, scan.created_at)
-    return ScanReportResponse(
-        target_origin=document.target_origin,
-        registry_version=document.registry_version,
-        score=document.score.value,
-        grade=document.score.grade,
-        counts_by_severity=document.score.counts_by_severity,
-        generated_at=document.generated_at,
-        findings=document.findings,
-    )
 
 
 async def _owned_scan_or_404(session: SessionDep, account: Account, scan_job_id: uuid.UUID):
@@ -167,7 +144,7 @@ async def resolve_share(token: str, session: SessionDep) -> ScanReportResponse:
 
     target = await get_target(session, scan.target_id)
     findings = await get_findings_for_scan(session, scan.id)
-    response = _build_report_response(target.origin if target else "", scan, findings)
+    response = render_scan_report(target.origin if target else "", scan, findings)
 
     await record_share_link_view(session, link.id)
     return response
