@@ -1,0 +1,34 @@
+"""Shared `vigilo_reporting.build_report()` glue for `routers/reports.py` and
+`routers/share_links.py` — both need to turn a persisted `Scan` + its
+findings into the same `ScanReportResponse` shape.
+"""
+
+from __future__ import annotations
+
+from vigilo_checks import REGISTRY
+from vigilo_core.models import Finding, Score
+from vigilo_orchestrator.models import Scan
+from vigilo_reporting import build_report
+
+from vigilo_api.schemas import ScanReportResponse
+
+MANIFESTS_BY_CHECK_ID = {check.manifest.check_id: check.manifest for check in REGISTRY}
+
+
+def render_scan_report(target_origin: str, scan: Scan, findings: list[Finding]) -> ScanReportResponse:
+    score = Score(
+        value=scan.score,
+        grade=scan.grade,
+        registry_version=scan.registry_version,
+        counts_by_severity=scan.counts_by_severity,
+    )
+    document = build_report(target_origin, score, findings, MANIFESTS_BY_CHECK_ID, scan.created_at)
+    return ScanReportResponse(
+        target_origin=document.target_origin,
+        registry_version=document.registry_version,
+        score=document.score.value,
+        grade=document.score.grade,
+        counts_by_severity=document.score.counts_by_severity,
+        generated_at=document.generated_at,
+        findings=document.findings,
+    )

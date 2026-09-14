@@ -135,6 +135,11 @@ async def get_scan_by_job_id(session: AsyncSession, job_id: uuid.UUID) -> Scan |
     return Scan.model_validate(row) if row else None
 
 
+async def get_scan(session: AsyncSession, scan_id: uuid.UUID) -> Scan | None:
+    row = await session.get(ScanRow, scan_id)
+    return Scan.model_validate(row) if row else None
+
+
 __all__ = [
     "TERMINAL_STATUSES",
     "create_scan_job",
@@ -142,4 +147,5 @@ __all__ = [
     "advance",
     "record_scan_result",
     "get_scan_by_job_id",
+    "get_scan",
 ]

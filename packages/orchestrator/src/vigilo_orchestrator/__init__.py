@@ -39,6 +39,7 @@ from vigilo_orchestrator.reports import (
 from vigilo_orchestrator.service import (
     advance,
     create_scan_job,
+    get_scan,
     get_scan_by_job_id,
     get_scan_job,
     record_scan_result,
@@ -58,6 +59,7 @@ __all__ = [
     "advance",
     "record_scan_result",
     "get_scan_by_job_id",
+    "get_scan",
     "get_findings_for_scan",
     "get_or_create_html_report",
     "get_or_create_pdf_report",

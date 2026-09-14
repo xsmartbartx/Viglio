@@ -20,7 +20,6 @@ from vigilo_identity.models import Account
 from vigilo_orchestrator.reports import (
     get_findings_for_scan,
     get_or_create_pdf_report,
-    get_report,
     get_report_pdf_bytes,
 )
 from vigilo_orchestrator.service import get_scan_by_job_id, get_scan_job
@@ -118,9 +117,8 @@ async def get_report_pdf_status(scan_job_id: uuid.UUID, session: SessionDep) -> 
 
 @router.get("/v1/reports/{report_id}/download")
 async def download_report_pdf(report_id: uuid.UUID, session: SessionDep) -> Response:
-    report = await get_report(session, report_id)
-    if report is None:
-        raise HTTPException(status_code=404, detail="report not found")
-
+    # get_report_pdf_bytes() raises ReportNotFound (-> 404 via the app-wide
+    # StructuredError handler) for both an unknown id and a not-yet-complete
+    # PDF — no separate existence check needed here.
     content = await get_report_pdf_bytes(session, report_id)
     return Response(content=content, media_type="application/pdf")
