@@ -3,6 +3,16 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* brand.config.json's theme block — the single source of truth for these
+     values; kept in sync by hand since Tailwind's CSS-first config can't
+     import JSON directly. */
+  --color-primary: #0f172a;
+  --color-accent: #22d3ee;
+  --color-critical: #dc2626;
+  --color-high: #ea580c;
+  --color-medium: #ca8a04;
+  --color-low: #0891b2;
+  --color-pass: #16a34a;
 }
 
 @theme inline {
@@ -10,6 +20,13 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-brand-primary: var(--color-primary);
+  --color-brand-accent: var(--color-accent);
+  --color-severity-critical: var(--color-critical);
+  --color-severity-high: var(--color-high);
+  --color-severity-medium: var(--color-medium);
+  --color-severity-low: var(--color-low);
+  --color-severity-pass: var(--color-pass);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +39,4 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
