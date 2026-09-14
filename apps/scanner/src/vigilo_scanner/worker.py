@@ -10,7 +10,7 @@ from arq.connections import RedisSettings
 
 from vigilo_core.config import config
 from vigilo_core.errors import ErrorCode, StructuredError
-from vigilo_orchestrator.jobs import run_scan_job, verify_ownership_job
+from vigilo_orchestrator.jobs import render_report_pdf_job, run_scan_job, verify_ownership_job
 
 
 def _redis_settings() -> RedisSettings:
@@ -21,5 +21,5 @@ def _redis_settings() -> RedisSettings:
 
 
 class WorkerSettings:
-    functions = [run_scan_job, verify_ownership_job]
+    functions = [run_scan_job, verify_ownership_job, render_report_pdf_job]
     redis_settings = _redis_settings()

@@ -15,6 +15,7 @@ dependencies = [
     "vigilo-integrations",
     "vigilo-persistence",
     "vigilo-project",
+    "vigilo-reporting",
 ]
 
 [dependency-groups]
@@ -30,6 +31,7 @@ vigilo-orchestrator = { workspace = true }
 vigilo-integrations = { workspace = true }
 vigilo-persistence = { workspace = true }
 vigilo-project = { workspace = true }
+vigilo-reporting = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
