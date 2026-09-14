@@ -8,7 +8,14 @@ from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.models import Tier, VerificationMethod
 from vigilo_identity.repository import get_or_create_account
 from vigilo_integrations.errors import MailDeliveryFailed
-from vigilo_orchestrator.service import advance, create_scan_job, get_scan_by_job_id, get_scan_job
+from vigilo_orchestrator.reports import get_or_create_pdf_report, get_report
+from vigilo_orchestrator.service import (
+    advance,
+    create_scan_job,
+    get_scan_by_job_id,
+    get_scan_job,
+    record_scan_result,
+)
 from vigilo_persistence import session_scope
 from vigilo_project.repository import (
     create_target,
@@ -16,6 +23,7 @@ from vigilo_project.repository import (
     get_target,
     issue_ownership_proof,
 )
+from vigilo_reporting.errors import PdfRenderError
 from vigilo_security.exceptions import EgressDenied
 from vigilo_security.ownership import VerificationResult
 

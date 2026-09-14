@@ -1399,6 +1399,7 @@ dependencies = [
     { name = "vigilo-persistence" },
     { name = "vigilo-probes" },
     { name = "vigilo-project" },
+    { name = "vigilo-reporting" },
     { name = "vigilo-scoring" },
     { name = "vigilo-security" },
 ]
@@ -1417,6 +1418,7 @@ requires-dist = [
     { name = "vigilo-persistence", editable = "packages/persistence" },
     { name = "vigilo-probes", editable = "packages/probes" },
     { name = "vigilo-project", editable = "packages/project" },
+    { name = "vigilo-reporting", editable = "packages/reporting" },
     { name = "vigilo-scoring", editable = "packages/scoring" },
     { name = "vigilo-security", editable = "packages/security" },
 ]
@@ -1541,6 +1543,7 @@ dependencies = [
     { name = "vigilo-persistence" },
     { name = "vigilo-probes" },
     { name = "vigilo-project" },
+    { name = "vigilo-reporting" },
     { name = "vigilo-scoring" },
     { name = "vigilo-security" },
 ]
@@ -1560,6 +1563,7 @@ requires-dist = [
     { name = "vigilo-persistence", editable = "packages/persistence" },
     { name = "vigilo-probes", editable = "packages/probes" },
     { name = "vigilo-project", editable = "packages/project" },
+    { name = "vigilo-reporting", editable = "packages/reporting" },
     { name = "vigilo-scoring", editable = "packages/scoring" },
     { name = "vigilo-security", editable = "packages/security" },
 ]
