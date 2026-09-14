@@ -36,3 +36,27 @@ class Scan(BaseModel):
     bundle_id: str | None
 
     model_config = {"from_attributes": True}
+
+
+class Report(BaseModel):
+    id: uuid.UUID
+    scan_id: uuid.UUID
+    format: str
+    status: str
+    artefact_uri: str | None
+    branding_profile_id: str | None
+    generated_at: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ShareLink(BaseModel):
+    id: uuid.UUID
+    report_id: uuid.UUID
+    expires_at: datetime | None
+    revoked_at: datetime | None
+    view_count: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

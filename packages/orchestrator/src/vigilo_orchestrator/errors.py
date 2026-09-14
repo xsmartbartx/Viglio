@@ -13,3 +13,13 @@ class ScanJobNotFound(StructuredError):
 class InvalidScanTransition(StructuredError):
     def __init__(self, message: str, **context: Any) -> None:
         super().__init__(ErrorCode.INVALID_STATE_TRANSITION, message, **context)
+
+
+class ReportNotFound(StructuredError):
+    def __init__(self, message: str, **context: Any) -> None:
+        super().__init__(ErrorCode.REPORT_NOT_FOUND, message, **context)
+
+
+class ShareLinkNotFound(StructuredError):
+    def __init__(self, message: str, **context: Any) -> None:
+        super().__init__(ErrorCode.SHARE_LINK_NOT_FOUND, message, **context)

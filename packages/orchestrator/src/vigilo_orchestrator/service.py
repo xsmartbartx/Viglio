@@ -107,6 +107,7 @@ async def record_scan_result(
     await session.flush()
 
     for finding in findings:
+        evidence = finding.evidence
         session.add(
             FindingRow(
                 scan_id=scan_row.id,
@@ -116,8 +117,11 @@ async def record_scan_result(
                 confidence=finding.confidence.value,
                 title=finding.title,
                 summary=finding.summary,
-                evidence_id=finding.evidence.id if finding.evidence else None,
+                evidence_id=evidence.id if evidence else None,
                 fingerprint=finding.fingerprint,
+                matched_indicator=evidence.matched_indicator if evidence else None,
+                request_summary=evidence.request_summary if evidence else None,
+                redaction_applied=evidence.redaction_applied if evidence else None,
             )
         )
     await session.flush()
