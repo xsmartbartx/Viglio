@@ -151,20 +151,26 @@ See `docs/security.md` and ADR 0003.
 
 ## Local development
 
-Requires [`uv`](https://docs.astral.sh/uv/), Docker, and Docker Compose. No third-party
-accounts are needed for Phase 0 — everything runs locally.
+Requires [`uv`](https://docs.astral.sh/uv/), Docker, and Docker Compose. Real
+Clerk/Postmark accounts are only needed to exercise auth/email end to end —
+everything else runs locally with no third-party accounts.
 
 ```bash
-cp .env.example .env
+cp .env.example .env            # fill CLERK_SECRET_KEY/CLERK_JWKS_URL/POSTMARK_SERVER_TOKEN
+                                 # to exercise auth/email; the rest works without them
 uv sync --all-packages          # installs every package/app into one .venv
 docker compose up -d            # postgres, redis, minio — bound to localhost only
-uv run pytest -q                # full test suite, including the egress-guard build-blocking suite
+uv run alembic -c packages/persistence/alembic.ini upgrade head   # create the schema
+uv run pytest -q                # full test suite, including both build-blocking suites
 uv run ruff check .
-uv run vigilo scan https://example.com     # a real, live scan end to end
-uv run uvicorn vigilo_api.main:app --reload --app-dir apps/api/src
+uv run vigilo scan https://example.com     # a real, live scan end to end, no persistence
+uv run arq vigilo_scanner.worker.WorkerSettings --app-dir apps/scanner/src  # the ARQ worker
+uv run uvicorn vigilo_api.main:app --reload --app-dir apps/api/src         # the control plane
 ```
 
-Then `curl http://localhost:8000/healthz` and `curl http://localhost:8000/version`.
+Then `curl http://localhost:8000/healthz` and `curl http://localhost:8000/version`, or
+`curl -X POST http://localhost:8000/v1/scans -d '{"target_url":"https://example.com","email":"you@example.com"}'`
+for the full anonymous-scan flow (needs the worker running to actually complete).
 
 Stop the local infra with `docker compose down` when done.
 
@@ -172,22 +178,28 @@ Stop the local infra with `docker compose down` when done.
 
 ## Status
 
-**Phase 2 (Registry to v0.1) complete.** The catalogue has grown to **57 checks**
-across 9 categories — `HDR`, `TLS`, `SES`, `LEG`, `DEP`, `CMP`, `CLI`, `EXP`
-(passive subset), `DAT` (the flagship exposed-backend-credential check) — see
-`docs/check-catalog.md` (generated, not hand-maintained). `packages/probes` gained
-three probes: `wellknown_probe`, `bundle_probe` (fetches linked scripts, every one
-egress-guarded), and `backend_probe` (detects and safely reachability-tests exposed
-Supabase/Firebase/S3/GCS credentials — its SSRF safety suite is build-blocking, same
-standard as the core egress guard). `packages/core`, `packages/security`,
-`packages/scoring` and `apps/cli` (`vigilo scan <url>`) round out the engine — a real
-scan of a live target works end to end, and the golden fixtures demonstrate the full
-registry (`good-config.json` scores 100/A, `bad-config.json` scores 0/F). `apps/api` is
-still a health/version bootstrap only. No persistence, no frontend, no billing, and
-no active-tier scanning yet (that needs Phase 3's ownership verification) — see
-`docs/build-roadmap.md` for what's next. All documents in `/docs` are authoritative
-for implementation and must be updated by the responsible agent whenever behaviour
-changes.
+**Phase 3 (Control plane) complete.** `apps/api` is a real control plane now, not a
+bootstrap: anonymous scan submission with email delivery
+(`POST /v1/scans`), Clerk-authenticated accounts/targets, and the full
+DNS/file/meta-tag ownership-verification flow (`docs/api.md`). Persistence
+arrived via a new `packages/persistence` (async SQLAlchemy + Alembic) —
+`Account`/`Project`/`Target`/`OwnershipProof`/`ScanJob`/`Scan`/`Finding`/
+`AuditEvent` across 8 tables (`docs/data-model.md`). `resolve_authorization()`
+and `verify_ownership()` are real, in `packages/security`, both fail-closed
+and both covered by their own build-blocking CI suite (the new
+`ownership-verification-suite`, alongside the original `egress-guard-suite`).
+The append-only audit trail is enforced at the database level by a Postgres
+trigger, not just application discipline. A real `packages/orchestrator`
+(replacing Phase 1's CLI-only convenience wrapper) drives the scan lifecycle
+as ARQ jobs, run by a new `apps/scanner` worker — the only control-plane
+process that talks to a target, enforced by a static import-boundary test.
+`packages/integrations` added Postmark (email) and MinIO/S3 (evidence
+storage). Both Phase 3 exit criteria run end to end locally against real
+Postgres/Redis/MinIO. Still ahead: the web frontend, LLM-authored report
+narrative, and the active-tier checks that verified ownership now unlocks
+but the registry doesn't populate yet — see `docs/build-roadmap.md` for
+what's next. All documents in `/docs` are authoritative for implementation
+and must be updated by the responsible agent whenever behaviour changes.
 
 ## Licence
 
