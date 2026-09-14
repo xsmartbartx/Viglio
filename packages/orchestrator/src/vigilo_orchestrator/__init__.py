@@ -27,6 +27,7 @@ from vigilo_orchestrator.reports import (
     get_or_create_html_report,
     get_or_create_pdf_report,
     get_report,
+    get_report_pdf_bytes,
     get_share_link,
     list_share_links,
     mark_report_complete,

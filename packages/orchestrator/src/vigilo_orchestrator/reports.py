@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vigilo_core.models import Confidence, Evidence, Finding, Severity, Verdict
+from vigilo_integrations.storage import get_report_pdf
 from vigilo_orchestrator.errors import ReportNotFound, ShareLinkNotFound
 from vigilo_orchestrator.models import Report, ShareLink
 from vigilo_orchestrator.orm import FindingRow, ReportRow, ScanRow, ShareLinkRow
@@ -127,6 +128,13 @@ async def mark_report_failed(session: AsyncSession, report_id: uuid.UUID) -> Rep
     row.status = "failed"
     await session.flush()
     return Report.model_validate(row)
+
+
+async def get_report_pdf_bytes(session: AsyncSession, report_id: uuid.UUID) -> bytes:
+    row = await session.get(ReportRow, report_id)
+    if row is None or row.status != "complete" or row.artefact_uri is None:
+        raise ReportNotFound("report pdf not ready", report_id=str(report_id))
+    return await get_report_pdf(row.artefact_uri)
 
 
 def _hash_token(token: str) -> str:
