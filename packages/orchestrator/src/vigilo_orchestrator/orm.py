@@ -1,10 +1,16 @@
-"""ScanJobRow / ScanRow / FindingRow
+"""ScanJobRow / ScanRow / FindingRow / ReportRow / ShareLinkRow
 (docs/prooflight-vision-and-architecture.md §6.1, docs/modules.md §8).
 
 `ScanRow.bundle_id` is a deliberate addition beyond the domain-model table —
 the object-storage pointer to the sealed `EvidenceBundle` (`docs/data-model.md`
 documents the deviation). FKs reference `targets.id`/`scan_jobs.id`/
 `scans.id` by table name only; this module never imports `vigilo_project.orm`.
+
+`FindingRow.matched_indicator`/`request_summary`/`redaction_applied` (Phase 4)
+persist what `packages/checks`' `to_findings()` already computes per finding
+but Phase 3 discarded — needed for evidence panels. No `captured_at` column:
+every finding in one scan shares `ScanRow.created_at` as its capture moment
+(`docs/data-model.md` documents the reuse).
 """
 
 from __future__ import annotations
@@ -12,7 +18,18 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from vigilo_persistence.base import Base
@@ -62,3 +79,32 @@ class FindingRow(Base):
     summary: Mapped[str] = mapped_column(Text)
     evidence_id: Mapped[str | None] = mapped_column(String(64), default=None)
     fingerprint: Mapped[str] = mapped_column(String(128))
+    matched_indicator: Mapped[str | None] = mapped_column(Text, default=None)
+    request_summary: Mapped[str | None] = mapped_column(String(255), default=None)
+    redaction_applied: Mapped[bool | None] = mapped_column(Boolean, default=None)
+
+
+class ReportRow(Base):
+    __tablename__ = "reports"
+    __table_args__ = (UniqueConstraint("scan_id", "format"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    scan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scans.id"), index=True)
+    format: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    artefact_uri: Mapped[str | None] = mapped_column(String(255), default=None)
+    branding_profile_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ShareLinkRow(Base):
+    __tablename__ = "share_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    report_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("reports.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
