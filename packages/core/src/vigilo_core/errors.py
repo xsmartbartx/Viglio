@@ -47,6 +47,14 @@ class ErrorCode(StrEnum):
     MAIL_DELIVERY_FAILED = "MAIL_DELIVERY_FAILED"
     OBJECT_STORE_ERROR = "OBJECT_STORE_ERROR"
 
+    # Reporting (Phase 4, docs/modules.md §6)
+    REPORT_NOT_FOUND = "REPORT_NOT_FOUND"
+    REPORT_NOT_READY = "REPORT_NOT_READY"
+    SHARE_LINK_NOT_FOUND = "SHARE_LINK_NOT_FOUND"
+    SHARE_LINK_EXPIRED = "SHARE_LINK_EXPIRED"
+    SHARE_LINK_REVOKED = "SHARE_LINK_REVOKED"
+    PDF_RENDER_FAILED = "PDF_RENDER_FAILED"
+
 
 class StructuredError(Exception):
     """A structured, loggable error carrying a stable code and sanitized context.
