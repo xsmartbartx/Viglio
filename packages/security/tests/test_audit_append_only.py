@@ -41,6 +41,8 @@ async def migrated_schema():
         await conn.execute(text("DROP FUNCTION IF EXISTS audit_events_no_update_delete() CASCADE"))
         await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
         tables = [
+            "share_links",
+            "reports",
             "findings",
             "scans",
             "scan_jobs",
@@ -62,7 +64,7 @@ async def migrated_schema():
             await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
 
 
-async def test_migrations_produce_all_eight_tables(migrated_schema):
+async def test_migrations_produce_all_expected_tables(migrated_schema):
     async with session_scope() as session:
         result = await session.execute(
             text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
@@ -78,6 +80,8 @@ async def test_migrations_produce_all_eight_tables(migrated_schema):
         "scans",
         "findings",
         "audit_events",
+        "reports",
+        "share_links",
         "alembic_version",
     }
 
