@@ -29,6 +29,7 @@ src = [
     "packages/project/src",
     "packages/integrations/src",
     "packages/orchestrator/src",
+    "packages/reporting/src",
     "apps/api/src",
     "apps/cli/src",
     "apps/scanner/src",
