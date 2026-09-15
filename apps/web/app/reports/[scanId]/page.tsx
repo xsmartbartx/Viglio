@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
-import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { Show, UserButton } from "@clerk/nextjs";
 import { ReportView } from "../../../components/report/ReportView";
 import { api, ApiError } from "../../../lib/api";
 import { brand } from "../../../lib/brand";
@@ -53,12 +53,12 @@ export default async function ReportPage({
             {brand.name}
           </Link>
           <nav className="flex items-center gap-4 text-sm">
-            <SignedOut>
+            <Show when="signed-out">
               <Link href="/sign-in">Sign in</Link>
-            </SignedOut>
-            <SignedIn>
+            </Show>
+            <Show when="signed-in">
               <UserButton />
-            </SignedIn>
+            </Show>
           </nav>
         </header>
       ) : null}

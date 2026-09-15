@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { Show, UserButton } from "@clerk/nextjs";
 import { ScanSubmitForm } from "../components/ScanSubmitForm";
 import { brand } from "../lib/brand";
 
@@ -9,12 +9,12 @@ export default function Home() {
       <header className="flex items-center justify-between px-6 py-4 border-b border-black/10 dark:border-white/10">
         <span className="font-semibold">{brand.name}</span>
         <nav className="flex items-center gap-4 text-sm">
-          <SignedOut>
+          <Show when="signed-out">
             <Link href="/sign-in">Sign in</Link>
-          </SignedOut>
-          <SignedIn>
+          </Show>
+          <Show when="signed-in">
             <UserButton />
-          </SignedIn>
+          </Show>
         </nav>
       </header>
       <main className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
