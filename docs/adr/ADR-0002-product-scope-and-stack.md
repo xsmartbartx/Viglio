@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Accepted |
+| Status | Accepted — see the Phase 4 addendum below |
 | Date | 2026-09-11 |
 
 ## Context
@@ -67,3 +67,53 @@ silent divergence: it's recorded here precisely so it doesn't get forgotten.
   Paddle/Lemon Squeezy, Resend/Postmark, a cloud host) is deliberately not
   provisioned yet — Phase 0 requires none of them and runs entirely on local
   Docker services.
+
+## Addendum (Phase 4): implementation decisions
+
+Five judgment calls made while actually building the report experience,
+recorded here per the same standing rule as ADR-0003's Phase 2/3 addenda.
+
+**Playwright's actual first production use is PDF export via a live-page
+render, not the `render`/`bundle` probes this ADR originally earmarked it
+for.** Those probes ended up built on `httpx` instead (Phase 1/2) — a
+headless browser turned out not to be needed to collect evidence, only to
+*present* it. `packages/reporting/src/vigilo_reporting/pdf.py`'s
+`render_pdf()` launches a real Chromium instance and navigates
+`{WEB_APP_URL}/reports/{scan_job_id}?print=1`, matching the Prooflight
+doc's "one layout source of truth" framing rather than standing up a
+second, server-templated HTML system. The stack table's line above is now
+historical intent, not current fact — corrected in spirit here rather than
+rewritten, per this document's own append-only addendum convention.
+
+**This introduces a new runtime coupling: `apps/scanner`'s ARQ worker now
+needs outbound network access to wherever `apps/web` is deployed.** Before
+Phase 4, the worker's only network target was the scan target itself
+(egress-guarded) plus Postgres/Redis/MinIO/Postmark. `WEB_APP_URL` is a
+new, unguarded (no egress-guard check) HTTP dependency — acceptable because
+it points at Vigilo's own frontend, a trusted first-party service, not
+attacker-controlled input; nothing egress-guard-worthy about a fixed,
+operator-configured URL. Production deployment must ensure the worker's
+network policy allows this one first-party destination.
+
+**`apps/api` gained its first CORS surface**, scoped to exactly
+`WEB_APP_URL` (`vigilo_api/main.py`), added conditionally only when that
+env var is set. Before Phase 4 nothing in `apps/api` was ever called from a
+browser directly (`apps/web`'s server components proxy every request
+server-to-server); Phase 4's `ExportPdfButton`/`ShareLinkManager` client
+components are the first code to call `apps/api` from inside a browser, for
+the two flows that need a live Clerk session token client-side.
+
+**`render_badge()` ships this phase as a pure function only — no API
+route, no caching, no embed page.** `docs/build-roadmap.md` already places
+the embeddable score badge at Phase 8, where `brand.config.json`'s
+already-reserved `badgePath` gets consumed; building a route for it now
+would be scope creep against a phase that isn't ready for it (no monitoring,
+no stable public score history to badge against yet).
+
+**No free-tier gating on the report itself.** The Phase 4 plan considered
+showing only the first finding to anonymous readers and gating the rest
+behind a paywall, but Phase 7 (Monetisation) is what actually builds
+entitlement enforcement (`packages/billing`, one call-site rule) — adding
+an ad hoc gate here would mean a second enforcement path to later reconcile
+with that one. The report renders unconditionally this phase, matching how
+Phase 3 already treats every scan.

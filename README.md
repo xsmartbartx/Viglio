@@ -79,7 +79,7 @@ packages/
   ├─ scoring/                         # deterministic score model
   ├─ orchestrator/                    # scan lifecycle: state machine + ARQ jobs
   ├─ integrations/                    # Postmark (email), MinIO/S3 (object storage)
-  ├─ reporting/                       # HTML/PDF/badge rendering (Phase 5)
+  ├─ reporting/                       # HTML/PDF/badge rendering (Phase 4)
   └─ mcp/                             # MCP server (Phase 9)
 docs/
   ├─ vision.md
@@ -157,11 +157,18 @@ everything else runs locally with no third-party accounts.
 
 ```bash
 cp .env.example .env            # fill CLERK_SECRET_KEY/CLERK_JWKS_URL/POSTMARK_SERVER_TOKEN
-                                 # to exercise auth/email; the rest works without them
+                                 # to exercise auth/email; WEB_APP_URL defaults to
+                                 # http://localhost:3000 (apps/web below) — the rest
+                                 # works with no third-party accounts at all
 uv sync --all-packages          # installs every package/app into one .venv
+uv run playwright install chromium   # one-time: the PDF-export render target
 docker compose up -d            # postgres, redis, minio — bound to localhost only
 uv run alembic -c packages/persistence/alembic.ini upgrade head   # create the schema
 uv run pytest -q                # full test suite, including both build-blocking suites
+                                 # — runs against DATABASE_URL, resetting its schema each
+                                 # time (packages/persistence's temporary_schema() fixture);
+                                 # re-run the alembic command above afterwards if you want
+                                 # your local dev data back.
 uv run ruff check .
 uv run vigilo scan https://example.com     # a real, live scan end to end, no persistence
 uv run arq vigilo_scanner.worker.WorkerSettings   # the ARQ worker (no --app-dir — every
@@ -174,13 +181,60 @@ Then `curl http://localhost:8000/healthz` and `curl http://localhost:8000/versio
 `curl -X POST http://localhost:8000/v1/scans -d '{"target_url":"https://example.com","email":"you@example.com"}'`
 for the full anonymous-scan flow (needs the worker running to actually complete).
 
+**`apps/web`** (Phase 4, Next.js — needs Node per `apps/web/.nvmrc`):
+
+```bash
+cp apps/web/.env.example apps/web/.env.local   # fill in Clerk keys — `npx clerk@latest init`
+                                                # (run from apps/web) provisions a free
+                                                # throwaway dev instance non-interactively,
+                                                # no dashboard account needed, and writes
+                                                # NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY/
+                                                # CLERK_SECRET_KEY straight into .env.local;
+                                                # copy CLERK_SECRET_KEY into the root .env
+                                                # too (apps/api verifies the same tokens) —
+                                                # derive CLERK_JWKS_URL from the publishable
+                                                # key's frontend-API host, i.e.
+                                                # https://<that-host>/.well-known/jwks.json.
+                                                # Then create the `vigilo-api` JWT template
+                                                # (with an `email` claim) either in the Clerk
+                                                # dashboard or via
+                                                # `npx clerk@latest api /jwt_templates -d
+                                                # '{"name":"vigilo-api","claims":{"email":
+                                                # "{{user.primary_email_address}}"}}'`.
+cd apps/web && npm install && npm run dev      # http://localhost:3000
+```
+
 Stop the local infra with `docker compose down` when done.
 
 ---
 
 ## Status
 
-**Phase 3 (Control plane) complete.** `apps/api` is a real control plane now, not a
+**Phase 4 (Report experience) complete.** `apps/web` is the repo's first
+TypeScript app (Next.js 16 + Clerk) and gives a scan an actual face: a
+public `/reports/{scanId}` page with score, severity-grouped findings,
+remediation text, evidence panels, and `COULDN'T CHECK`/`NOT APPLICABLE`
+rendered as two distinct, honestly-labelled sections — never silently
+folded into "passed." A new `packages/reporting` renders that same data as
+pure functions (`build_report`/`generate_remediation`, deterministic only —
+Phase 5 swaps one function's internals for an LLM call without changing the
+call site) and exports it to PDF by driving Playwright against the *live*
+web page (`?print=1`), one layout source of truth rather than a second
+templating system. `reports`/`share_links` joined the schema
+(`docs/data-model.md`): the full `ShareLink` entity (hashed, expiring,
+revocable tokens with view counts) ships additively on top of Phase 3's
+no-login scan-UUID access, not a replacement for it. A real gap surfaced
+and got fixed this phase too — `Finding.evidence` was computed at
+check-evaluation time but silently dropped before persistence; `findings`
+now has `matched_indicator`/`request_summary`/`redaction_applied` columns,
+with the `redaction_applied`-always-`False` producer-side gap documented,
+not silently shipped as if fixed. See `docs/build-roadmap.md`'s Phase 4
+entry for exactly what was verified live (including a real
+id-confusion bug the PDF pipeline shipped with, found and fixed during that
+pass) and the one gap that wasn't (the full Clerk sign-in flow, blocked by
+a bot-check this project won't attempt to solve).
+
+**Phase 3 (Control plane).** `apps/api` is a real control plane, not a
 bootstrap: anonymous scan submission with email delivery
 (`POST /v1/scans`), Clerk-authenticated accounts/targets, and the full
 DNS/file/meta-tag ownership-verification flow (`docs/api.md`). Persistence
@@ -197,11 +251,13 @@ as ARQ jobs, run by a new `apps/scanner` worker — the only control-plane
 process that talks to a target, enforced by a static import-boundary test.
 `packages/integrations` added Postmark (email) and MinIO/S3 (evidence
 storage). Both Phase 3 exit criteria run end to end locally against real
-Postgres/Redis/MinIO. Still ahead: the web frontend, LLM-authored report
-narrative, and the active-tier checks that verified ownership now unlocks
-but the registry doesn't populate yet — see `docs/build-roadmap.md` for
-what's next. All documents in `/docs` are authoritative for implementation
-and must be updated by the responsible agent whenever behaviour changes.
+Postgres/Redis/MinIO.
+
+Still ahead: LLM-authored report narrative, and the active-tier checks that
+verified ownership already unlocks but the registry doesn't populate yet —
+see `docs/build-roadmap.md` for what's next. All documents in `/docs` are
+authoritative for implementation and must be updated by the responsible
+agent whenever behaviour changes.
 
 ## Licence
 

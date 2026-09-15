@@ -124,14 +124,39 @@ top of Phase 3's no-login unguessable-scan-UUID access, not as a
 replacement for it.
 
 **Done when:** a non-technical reader can act on a report without asking a
-clarifying question first. Verified: a real scan's report renders at
-`/reports/{scanId}` with score, evidence panels, remediation text, and both
-skipped-checks sections; PDF export round-trips through a real Chromium
-render of the same page; an owner (matched by email, reusing Phase 3's
-anonymous→authenticated account merge) can create, list and revoke a share
-link, and a revoked or expired link returns `410` on the next resolution.
-`uv run pytest -q` (Python) and `npm run lint`/`npm run build` (`apps/web`)
-both green in CI, including a new `web` job.
+clarifying question first. Verified live, end to end, against a real scan of
+`https://example.com` (Postgres/Redis/MinIO + `apps/api` + `apps/scanner` +
+`apps/web`, a throwaway Clerk dev instance provisioned via `npx clerk@latest
+init`): `/reports/{scanId}` renders score, severity-grouped findings,
+remediation text, and both skipped-checks sections (`COULDN'T CHECK`/`NOT
+APPLICABLE` render as distinct, itemised sections, never merged into
+"passed"); PDF export round-trips through a real Chromium render of the same
+live page (`?print=1` hides header chrome and force-expands every evidence
+panel and the passed/skipped sections, so the PDF is a complete standalone
+document); a share link created directly against the `reports` repository
+resolves publicly through both `GET /v1/share/{token}` and `/share/{token}`,
+increments `view_count`, and returns `410 SHARE_LINK_REVOKED` on the next
+resolution after revocation. **This pass caught and fixed a real bug**:
+`render_report_pdf_job` was passing the `Report` row's own id to
+`render_pdf()`, which expects the *scan's* public job id — the PDF silently
+rendered `apps/web`'s 404 page instead of the report (no exception, just a
+one-page PDF of "not found"); fixed by resolving `Scan.job_id` first
+(`packages/orchestrator/src/vigilo_orchestrator/jobs.py`), and the
+regression test now asserts the exact id `render_pdf` receives, not just
+that it was called.
+
+**Known verification gap:** the full Clerk-authenticated browser flow (sign
+in → owner-only PDF/share-link controls appear → create/revoke through the
+actual UI) was not driven end to end — Clerk's hosted sign-up throws a
+Cloudflare Turnstile bot-check that this project will not attempt to solve
+or bypass by design. Clerk wiring itself (JWKS verification, the
+`vigilo-api` JWT template's `email` claim) is confirmed working up to that
+point, and `require_account`/`optional_account`/ownership-tracing logic has
+its own unit coverage (`apps/api/tests/test_reports.py`,
+`test_share_links.py`); a human still needs to click through the real
+sign-in once. `uv run pytest -q` (361 tests) and `uv run ruff check .`
+(Python), `npm run lint`/`npm run build` (`apps/web`) all green, including a
+new `web` CI job.
 
 ## Phase 5 — Analysis layer (LLM)
 
