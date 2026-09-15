@@ -2,7 +2,7 @@
 
 **Generated from `vigilo_checks.REGISTRY` — do not hand-edit.** Regenerate with `uv run python scripts/generate_check_catalog.py` after any manifest change (docs/build-roadmap.md Phase 2 exit criterion).
 
-**57 checks** across 9 categories.
+**64 checks** across 9 categories.
 
 ## CLI — Client-side exposure
 
@@ -55,6 +55,13 @@
 | `VG-EXP-003` | sitemap.xml is present | info | confirmed | passive | 0 | [link](https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview) |
 | `VG-EXP-004` | Web app manifest is present | info | confirmed | passive | 0 | [link](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest) |
 | `VG-EXP-005` | No verbose error page on the homepage | high | confirmed | passive | 6 | [link](https://owasp.org/www-project-top-ten/2017/A6_2017-Security_Misconfiguration) |
+| `VG-EXP-006` | Repository metadata not exposed | critical | confirmed | active | 9 | [link](https://cwe.mitre.org/data/definitions/527.html) |
+| `VG-EXP-007` | No backup or archive files reachable | critical | confirmed | active | 9 | [link](https://cwe.mitre.org/data/definitions/530.html) |
+| `VG-EXP-008` | No exposed configuration files | critical | confirmed | active | 9 | [link](https://cwe.mitre.org/data/definitions/538.html) |
+| `VG-EXP-009` | No debug routes reachable | medium | confirmed | active | 5 | [link](https://cwe.mitre.org/data/definitions/215.html) |
+| `VG-EXP-010` | No test/staging routes reachable | low | indicated | active | 3 | [link](https://cwe.mitre.org/data/definitions/489.html) |
+| `VG-EXP-011` | No directory listing enabled | medium | indicated | active | 5 | [link](https://cwe.mitre.org/data/definitions/548.html) |
+| `VG-EXP-012` | No default admin panel paths exposed | low | indicated | active | 2 | [link](https://owasp.org/Top10/A05_2021-Security_Misconfiguration/) |
 
 ## HDR — Response headers
 
