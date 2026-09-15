@@ -203,6 +203,12 @@ async def test_render_report_pdf_job_completes_and_stores_the_pdf(db_schema, mon
     stored = {}
 
     async def fake_render_pdf(scan_job_id, **kwargs):
+        # apps/web's report route is keyed by the public scan_job_id
+        # (Scan.job_id), not the Report row's own id — asserting this here
+        # is what would have caught the id-confusion bug this job originally
+        # shipped with (it passed report_id straight through, silently
+        # rendering apps/web's 404 page instead of the report).
+        stored["scan_job_id_arg"] = scan_job_id
         return b"%PDF-1.4 fake"
 
     async def fake_put_report_pdf(report_id, content):
@@ -219,6 +225,7 @@ async def test_render_report_pdf_job_completes_and_stores_the_pdf(db_schema, mon
     assert final is not None
     assert final.status == "complete"
     assert final.artefact_uri == str(report.id)
+    assert stored["scan_job_id_arg"] == str(scan.job_id)
     assert stored["report_id"] == str(report.id)
     assert stored["content"] == b"%PDF-1.4 fake"
 

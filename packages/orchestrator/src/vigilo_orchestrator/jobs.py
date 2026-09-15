@@ -24,7 +24,7 @@ from vigilo_integrations.errors import MailDeliveryFailed, ObjectStoreError
 from vigilo_integrations.mail import send_transactional_email
 from vigilo_integrations.storage import put_evidence_bundle, put_report_pdf
 from vigilo_orchestrator.reports import get_report, mark_report_complete, mark_report_failed
-from vigilo_orchestrator.service import advance, get_scan_job, record_scan_result
+from vigilo_orchestrator.service import advance, get_scan, get_scan_job, record_scan_result
 from vigilo_persistence import session_scope
 from vigilo_probes import run_probes
 from vigilo_project.repository import get_ownership_proof, get_target, mark_proof_verified
@@ -224,9 +224,17 @@ async def render_report_pdf_job(ctx: dict[str, Any], report_id: str) -> None:
         report = await get_report(session, report_uuid)
         if report is None or report.status != "pending":
             return
+        scan = await get_scan(session, report.scan_id)
+        if scan is None:
+            return
 
     try:
-        pdf_bytes = await render_pdf(report_id)
+        # apps/web's report route is keyed by the public scan_job_id
+        # (Scan.job_id), not this Report row's own id — render_pdf() builds
+        # its Playwright navigation URL from whatever it's given, so passing
+        # the wrong id silently renders apps/web's 404 page instead of the
+        # report (no exception, just a one-page PDF of "not found").
+        pdf_bytes = await render_pdf(str(scan.job_id))
         await put_report_pdf(report_id, pdf_bytes)
     except (PdfRenderError, ObjectStoreError):
         async with session_scope() as session:
