@@ -21,6 +21,7 @@ from vigilo_orchestrator.errors import (
     ShareLinkNotFound,
 )
 from vigilo_orchestrator.models import Report, Scan, ScanJob, ShareLink
+from vigilo_orchestrator.remediation import cache_remediation, get_remediations_for_findings
 from vigilo_orchestrator.reports import (
     create_share_link,
     get_findings_for_scan,
@@ -73,4 +74,6 @@ __all__ = [
     "revoke_share_link",
     "resolve_share_link",
     "record_share_link_view",
+    "get_remediations_for_findings",
+    "cache_remediation",
 ]

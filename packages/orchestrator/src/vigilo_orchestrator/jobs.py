@@ -273,3 +273,36 @@ async def render_report_pdf_job(ctx: dict[str, Any], report_id: str) -> None:
 
     async with session_scope() as session:
         await mark_report_complete(session, report_uuid)
+
+
+async def generate_remediations_job(ctx: dict[str, Any], scan_job_id: str) -> None:
+    """Auto-enqueued from `run_scan_job` right after the report email —
+    never inline in the scan pipeline itself, per
+    docs/adr/ADR-0004-llm-boundary.md's hard availability requirement.
+    Generates remediation only for FAILED findings (passed/inconclusive/
+    not_applicable never need "how to fix this" text), skipping any
+    finding already cached for this `(fingerprint, registry_version)`."""
+    async with session_scope() as session:
+        scan = await get_scan_by_job_id(session, uuid.UUID(scan_job_id))
+        if scan is None:
+            return
+        findings = await get_findings_for_scan(session, scan.id)
+
+    failed = [f for f in findings if f.verdict == Verdict.FAILED]
+    if not failed:
+        return
+
+    manifests_by_check_id = {check.manifest.check_id: check.manifest for check in REGISTRY}
+
+    async with session_scope() as session:
+        cached = await get_remediations_for_findings(session, failed, scan.registry_version)
+        for finding in failed:
+            if finding.check_id in cached:
+                continue
+            manifest = manifests_by_check_id.get(finding.check_id)
+            if manifest is None:
+                continue
+            prompt = await generate_remediation(finding, manifest)
+            await cache_remediation(
+                session, finding.fingerprint, finding.check_id, scan.registry_version, prompt
+            )
