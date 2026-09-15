@@ -65,9 +65,8 @@ No auth required (the id is an unguessable UUID).
 ```
 
 `score`/`grade`/`counts_by_severity` are `null` until the job reaches
-`scoring` or later. Full per-finding detail is **not** exposed here — that's
-Phase 4's report UI; a completed free scan's findings arrive via the
-emailed report, not this endpoint.
+`scoring` or later. Full per-finding detail is **not** exposed here — see
+`GET /v1/scans/{id}/report` below.
 
 **Errors**: `404` unknown job id.
 
@@ -153,24 +152,135 @@ only.
 
 ---
 
+## `GET /v1/scans/{scan_job_id}/report` — the full per-finding report (Phase 4)
+
+Optional auth: a bearer token is not required — the report renders for
+anyone holding the unguessable `scan_job_id`, same posture as `GET
+/v1/scans/{id}` — but when present it's used to compute `is_owner`, so the
+frontend can show owner-only controls (PDF export, share-link management)
+without a second round trip.
+
+**Response `200`**
+
+```json
+{
+  "scan_job_id": "...",
+  "is_owner": true,
+  "target_origin": "https://example.com",
+  "registry_version": "0.1",
+  "score": 92.0,
+  "grade": "A",
+  "counts_by_severity": { "high": 1 },
+  "generated_at": "2026-09-13T19:00:00Z",
+  "findings": [
+    {
+      "check_id": "VG-HDR-001",
+      "category": "headers",
+      "title": "...",
+      "severity": "high",
+      "confidence": "confirmed",
+      "verdict": "failed",
+      "summary": "...",
+      "remediation": "...",
+      "references": ["https://..."],
+      "evidence": {
+        "matched_indicator": "...",
+        "request_summary": "...",
+        "redaction_applied": null,
+        "captured_at": "..."
+      },
+      "fingerprint": "..."
+    }
+  ]
+}
+```
+
+**Errors**: `404` unknown job, `409` the job exists but hasn't reached
+scoring yet — distinguishes "keep polling" from "wrong id."
+
+## `POST /v1/scans/{scan_job_id}/report/pdf` — request a PDF render
+
+No auth required. Idempotent: finds-or-creates the `format="pdf"` `Report`
+row and enqueues `render_report_pdf_job` only if one isn't already
+pending or complete.
+
+**Response `202`**: `{ "report_id": "...", "status": "pending", "download_url": null }`
+
+## `GET /v1/scans/{scan_job_id}/report/pdf` — poll PDF render status
+
+No auth required. Same response shape as above; `download_url` is
+`/v1/reports/{report_id}/download` once `status` is `"complete"`.
+
+## `GET /v1/reports/{report_id}/download` — stream the rendered PDF
+
+No auth required. `Content-Type: application/pdf`.
+
+**Errors**: `404` for an unknown report id or one that hasn't finished
+rendering — the same code covers both, deliberately, since `get_report_pdf_bytes()`
+doesn't distinguish "doesn't exist" from "not ready" at this endpoint.
+
+## `POST /v1/scans/{scan_job_id}/share-links` — create a share link
+
+Auth required, caller must own the target. Finds-or-creates the
+`format="html"` `Report` row first (its content is never actually stored —
+see `docs/data-model.md`).
+
+**Request**: `{ "expires_in_days": 30 }` (optional; omit or `null` for no expiry)
+
+**Response `201`**
+
+```json
+{ "share_link_id": "...", "token": "...", "url": "https://.../share/...", "expires_at": "2026-10-13T19:00:00Z" }
+```
+
+`token` is returned once, at creation time — only its SHA-256 hash is
+persisted (`share_links.token_hash`).
+
+## `GET /v1/scans/{scan_job_id}/share-links` — list share links
+
+Auth required, caller must own the target. Never returns `token_hash`.
+
+**Response `200`**: `[{ "share_link_id": "...", "expires_at": null, "revoked_at": null, "view_count": 3, "created_at": "..." }]`
+
+## `POST /v1/share-links/{share_link_id}/revoke` — revoke a share link
+
+Auth required, caller must own the target — ownership is traced
+`share_link → report → scan → target`. `404`, not `403`, on ownership
+mismatch, matching `targets.py`'s existing precedent.
+
+**Response `200`**: `{ "share_link_id": "...", "revoked_at": "2026-09-15T12:00:00Z" }`
+
+## `GET /v1/share/{token}` — resolve a share link
+
+No auth. Public by design. Increments `view_count` on every successful
+resolution.
+
+**Response `200`**: the same shape as `GET /v1/scans/{id}/report`, with
+`scan_job_id`/`is_owner` both `null`.
+
+**Errors**: `404` unknown token; `410` expired or revoked (two distinct
+`ErrorCode`s, same HTTP status — the difference is only in `body.code`).
+
+---
+
 ## Error-code → HTTP status mapping (`vigilo_api/errors.py`)
 
 | `ErrorCode` | Status |
 | --- | --- |
-| `NOT_FOUND`, `SCAN_JOB_NOT_FOUND`, `OWNERSHIP_PROOF_NOT_FOUND` | 404 |
+| `NOT_FOUND`, `SCAN_JOB_NOT_FOUND`, `OWNERSHIP_PROOF_NOT_FOUND`, `REPORT_NOT_FOUND`, `SHARE_LINK_NOT_FOUND` | 404 |
 | `VALIDATION_ERROR`, `TARGET_INVALID` | 422 |
 | `TARGET_UNVERIFIED`, `TARGET_OPTED_OUT`, `TIER_NOT_PERMITTED` | 403 |
 | `RATE_LIMIT_EXCEEDED`, `QUOTA_EXCEEDED` | 429 |
-| `OWNERSHIP_PROOF_EXPIRED` | 410 |
-| `INVALID_STATE_TRANSITION` | 409 |
-| anything else | 500 |
+| `OWNERSHIP_PROOF_EXPIRED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_REVOKED` | 410 |
+| `INVALID_STATE_TRANSITION`, `REPORT_NOT_READY` | 409 |
+| `PDF_RENDER_FAILED` and anything else | 500 |
 
 ---
 
 ## Not yet built (later phases)
 
-Project management endpoints (multiple projects per account — Phase 4),
-full per-finding report retrieval and PDF export (Phase 4), webhooks and
-API keys (Phase 9), billing/entitlement endpoints (Phase 7), the public
-REST API's rate-limited, key-authenticated surface distinct from this
+Multi-project management endpoints (every account gets exactly one default
+project today — see `docs/data-model.md`), webhooks and API keys (Phase 9),
+billing/entitlement endpoints (Phase 7), the public REST API's
+rate-limited, key-authenticated surface distinct from this
 session-authenticated one (Phase 9), the MCP server (Phase 9).

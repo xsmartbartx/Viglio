@@ -12,11 +12,11 @@ those migrations mean and why, and calls out every place Phase 3's actual
 implementation deviates from the entity table in
 `docs/prooflight-vision-and-architecture.md` §6.1.
 
-Phase 3 implements 8 of that table's ~17 entities — exactly the ones the
-roadmap's exit criteria need. `Project`, `MonitorSchedule`, `Alert`,
-`Report`, `ShareLink`, `ApiKey`, `Subscription`, `ScoreSnapshot` and a
-standalone `Evidence` table are deferred to the phases that actually need
-them (Phase 4 report UI, Phase 7 billing, Phase 8 monitoring).
+Phase 3 implemented 8 of that table's ~17 entities — exactly the ones its
+exit criteria needed. Phase 4 adds two more, `Report` and `ShareLink` (see
+below). `MonitorSchedule`, `Alert`, `ApiKey`, `Subscription`,
+`ScoreSnapshot` and a standalone `Evidence` table remain deferred to the
+phases that actually need them (Phase 7 billing, Phase 8 monitoring).
 
 ---
 
@@ -136,7 +136,48 @@ not modeled as per-finding relational rows.
 | `title` | varchar(255) | |
 | `summary` | text | |
 | `evidence_id` | varchar(64), nullable | Free-text pointer into the bundle, not a separate `Evidence` table |
+| `matched_indicator` | text, nullable | **Added Phase 4.** The concrete evidence string behind a finding (`Finding.evidence.matched_indicator`) — was computed at check-evaluation time and silently discarded before persistence until this phase, which made evidence panels unbuildable. Already redaction-safe by construction: every secret-detecting check routes through `vigilo_core.redact.redact()` before it ever becomes a `CheckResult.matched_indicator`. |
+| `request_summary` | varchar(255), nullable | **Added Phase 4.** A short human-readable description of the request that produced the evidence (e.g. `"GET /"`). |
+| `redaction_applied` | boolean, nullable | **Added Phase 4.** Persisted from `Finding.evidence.redaction_applied`. **Known gap, not fixed this phase:** `to_findings()` (`packages/checks/src/vigilo_checks/findings.py`) currently hardcodes this to `False` unconditionally, so the column is persisted honestly but the value itself doesn't yet reflect reality. The web UI deliberately does **not** surface a "redacted" badge from this column, since that signal would currently be misleading. |
 | `fingerprint` | varchar(128) | Stable cross-scan identity, for the regression detection Phase 8 adds |
+
+No `captured_at` column on `findings` — Phase 4's `EvidencePanel` reuses
+`Scan.created_at` instead (`get_findings_for_scan()`'s reconstruction). Every
+finding in a scan shares one evidence-bundle capture moment; the gap between
+capture and persistence is milliseconds, so a per-finding timestamp would add
+a column without adding real precision.
+
+## reports (`packages/orchestrator`, added Phase 4)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID, PK | |
+| `scan_id` | UUID, FK → `scans.id`, indexed | |
+| `format` | varchar(16) | `"html"` \| `"pdf"` |
+| `status` | varchar(16), default `"pending"` | `"pending"` \| `"complete"` \| `"failed"` — represents the PDF-render job's lifecycle. An `"html"` report is always created with `status="complete"` immediately: nothing is rendered ahead of time, the web page renders on request. |
+| `artefact_uri` | varchar(255), nullable | Object-store key for a completed PDF (`reports/{report_id}.pdf`). Always `NULL` for `format="html"` — the HTML report has no stored artefact, `apps/web`'s report page renders it live from `GET /v1/scans/{id}/report` on every request. |
+| `branding_profile_id` | varchar(64), nullable | Placeholder — no such entity exists yet, same pattern as `accounts.plan_id` |
+| `generated_at` | timestamptz, nullable | Set on completion |
+| `created_at` | timestamptz | |
+
+`UniqueConstraint(scan_id, format)` — at most one HTML report row and one PDF
+report row per scan, found-or-created idempotently by
+`get_or_create_html_report()`/`get_or_create_pdf_report()`.
+
+## share_links (`packages/orchestrator`, added Phase 4)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID, PK | |
+| `report_id` | UUID, FK → `reports.id`, indexed | |
+| `token_hash` | varchar(64), unique | `sha256(token).hexdigest()` — plain SHA-256, not a slow KDF, is correct here: the token already carries ~256 bits of entropy (`secrets.token_urlsafe(32)`, matching `ownership_proofs.nonce`'s existing convention), it's a bearer capability token, not a low-entropy password. |
+| `expires_at` | timestamptz, nullable | |
+| `revoked_at` | timestamptz, nullable | |
+| `view_count` | integer, default 0 | Incremented by `record_share_link_view()` on every successful `GET /v1/share/{token}` resolution |
+| `created_at` | timestamptz | |
+
+The plaintext token is returned once, at creation
+(`POST /v1/scans/{id}/share-links`), and never persisted or logged.
 
 ## audit_events (`packages/security`)
 
@@ -177,10 +218,10 @@ one physical schema.
 
 ## Deferred entities
 
-Not yet modeled (see the phase that adds them): `Project`-level UI/API
-(Phase 4), `Evidence` as its own relational table (no phase commits to this
+Not yet modeled (see the phase that adds them): multi-`Project` UI/API
+(every account still gets exactly one default project, no phase commits to
+this yet), `Evidence` as its own relational table (no phase commits to this
 yet — object storage has sufficed so far), `CheckDefinition` (the registry
 in code is the source of truth; no DB mirror exists), `ScoreSnapshot`
 (Phase 8's score-history charts), `MonitorSchedule`/`Alert` (Phase 8),
-`Report`/`ShareLink` (Phase 4), `ApiKey` (Phase 9's public API),
-`Subscription` (Phase 7).
+`ApiKey` (Phase 9's public API), `Subscription` (Phase 7).

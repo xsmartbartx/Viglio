@@ -59,6 +59,8 @@ flowchart TD
     SEC --> API
     IDENTITY --> API
     PROJECT --> API
+    CHECKS --> API
+    REPORTING --> API
     MONITOR --> ORCH
     MONITOR --> NOTIFY
     BILLING --> API
@@ -336,22 +338,39 @@ be gamed by request parameters.
 
 ## 6. reporting
 
-**Responsibility.** Render findings for humans: HTML report, PDF, badge, remediation prompt
-text.
+**Responsibility.** Render findings for humans: HTML report document, PDF, badge,
+remediation prompt text.
 
 **Boundaries.** Cannot create, delete or reclassify a finding. The LLM writes narrative
 around a finding set that is already fixed. Report generation is idempotent.
 
+**Deviation (Phase 4).** Every function here is pure — no self-fetching by
+`scan_id`, unlike the sketch below implies. Callers (`apps/api`'s
+`report_rendering.py`) fetch findings/manifests themselves and pass them in,
+matching the pattern already set by `resolve_authorization()` and the
+`checks` registry. `build_report`'s `generated_at` is a required parameter,
+not `datetime.now()`, so the same scan renders identically for the web view
+and later for the PDF. `render_pdf` doesn't template HTML itself — it drives
+Playwright against the *live* `apps/web` report page
+(`{WEB_APP_URL}/reports/{scan_id}?print=1`), so there is exactly one layout
+source of truth. `render_badge` ships this phase only as a pure function —
+no API route or caching yet; that lands in Phase 8 alongside
+`brand.config.json`'s already-reserved `badgePath`.
+
 **API**
 
 ```python
-build_report(scan_id) -> Report
-render_pdf(report) -> bytes
-render_badge(public_id) -> SVG
-generate_remediation(finding, stack_profile) -> Prompt
+build_report(target_origin, score, findings, manifests_by_check_id, generated_at) -> ReportDocument
+render_pdf(scan_job_id, pdf_renderer=None) -> bytes
+render_badge(score, generated_at) -> str   # SVG
+generate_remediation(finding, manifest, stack_profile=None) -> RemediationPrompt
 ```
 
-**Dependencies.** core, scoring, integrations (LLM provider).
+**Dependencies.** core only. `render_pdf` also depends on the third-party
+`playwright` package and reads `WEB_APP_URL` from `core`'s config — no
+workspace package beyond `core`. Phase 5 adds `integrations` (LLM provider)
+when `generate_remediation`'s body swaps from a static template to a Claude
+call; the call site here won't change.
 
 **Security.** Output validation before release: no raw evidence, no unredacted secret, no
 internal identifier. If the LLM provider fails, the module falls back to the static
@@ -430,17 +449,29 @@ create_scan_job(session, target_id, tier, requested_by, registry_version, budget
 advance(session, scan_job_id, new_status) -> ScanJob   # enforces the state machine above
 record_scan_result(session, job, findings, result, duration_ms, bundle_id=None) -> Scan
 get_scan_by_job_id(session, job_id) -> Scan | None
+get_scan(session, scan_id) -> Scan | None
+
+# Phase 4 — Report/ShareLink repository (packages/orchestrator/src/vigilo_orchestrator/reports.py):
+get_findings_for_scan(session, scan_id) -> list[Finding]
+get_or_create_html_report(session, scan_id) -> Report
+get_or_create_pdf_report(session, scan_id) -> tuple[Report, bool]   # bool: should_render
+mark_report_complete(session, report_id) -> Report
+mark_report_failed(session, report_id) -> Report
+get_report_pdf_bytes(session, report_id) -> bytes
+create_share_link(session, report_id, expires_in_days=None) -> tuple[ShareLink, str]   # str: plaintext token, returned once
+resolve_share_link(session, token) -> ShareLink | None
+revoke_share_link(session, share_link_id) -> ShareLink
 
 # ARQ task bodies (packages/orchestrator/src/vigilo_orchestrator/jobs.py),
 # registered by apps/scanner's WorkerSettings, never called from apps/api:
 run_scan_job(ctx, scan_job_id: str) -> None
 verify_ownership_job(ctx, proof_id: str) -> None
+render_report_pdf_job(ctx, report_id: str) -> None
 ```
 
 **Dependencies.** core, persistence, security, probes, checks, scoring,
-integrations, identity, project. (`reporting` is dropped from this list
-until Phase 5 builds it — Phase 3's report is a minimal inline HTML email,
-not a `reporting`-module call.)
+integrations, identity, project, reporting (Phase 4 — `render_report_pdf_job`
+calls `vigilo_reporting.render_pdf`/`vigilo_integrations.put_report_pdf`).
 
 **Security.** Signs the job envelope handed to the scan zone. The envelope carries the
 resolved tier and the request budget; a worker cannot widen its own scope. (Phase 3's
@@ -524,9 +555,14 @@ serialises the result. Must never import `probes` (or `orchestrator.jobs`, or th
 
 **Dependencies.** All of the above except `probes` directly (reached only
 transitively through `orchestrator.service`, never imported by this app's own code).
+Phase 4 adds direct dependencies on `checks` (the pure, I/O-free `REGISTRY` —
+`report_rendering.py` builds a `CheckManifest` lookup for remediation text/
+references/category, doesn't weaken the egress-import guard below) and
+`reporting` (`build_report`/`render_badge`).
 
 **Security.** Authentication on every route that isn't explicitly public
-(`POST /v1/scans`, `GET /v1/scans/{id}` — see `api.md`). Request schema
+(`POST /v1/scans`, `GET /v1/scans/{id}`, `GET /v1/scans/{id}/report`, the PDF
+routes, `GET /v1/share/{token}` — see `api.md`). Request schema
 validation before dispatch. Response schema validation before release.
 Per-key rate limits (Phase 9's public API; Phase 3's session-authenticated
 surface uses a minimal scan-count ceiling instead, see `security.md` §3).

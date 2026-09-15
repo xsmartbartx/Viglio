@@ -106,15 +106,32 @@ locally against real Postgres/Redis/MinIO, with the append-only audit
 trigger and both build-blocking network-safety suites
 (`egress-guard-suite`, `ownership-verification-suite`) green in CI.
 
-## Phase 4 — Report experience
+## Phase 4 — Report experience ✅
 
-Web report UI (Next.js), evidence panels, severity grouping, skipped-checks
-transparency (a check that couldn't run is shown as such, never silently
-passing — per the Phase 0 domain model's `Verdict.INCONCLUSIVE`), PDF export
-via headless-browser render of the same HTML.
+Web report UI (`apps/web`, Next.js 16 + Clerk), evidence panels (per-finding
+`matched_indicator`/`request_summary`, a schema gap fixed this phase — see
+`docs/data-model.md`'s `findings` table), severity grouping, skipped-checks
+transparency (`INCONCLUSIVE`/`NOT_APPLICABLE` render as two distinct,
+explicitly-labelled sections, never silently merged into "passed" — per the
+Phase 0 domain model's `Verdict`), PDF export via a real headless-browser
+(Playwright) render of the same live HTML page — one layout source of
+truth, not a parallel server-templated system. The real `packages/reporting`
+package landed this phase too (deterministic-only: static
+`remediation_template` text, no LLM yet — Phase 5 swaps one function's
+internals without changing the call site). The full `ShareLink` entity
+(hashed, expiring, revocable tokens with view counts) shipped additively on
+top of Phase 3's no-login unguessable-scan-UUID access, not as a
+replacement for it.
 
 **Done when:** a non-technical reader can act on a report without asking a
-clarifying question first.
+clarifying question first. Verified: a real scan's report renders at
+`/reports/{scanId}` with score, evidence panels, remediation text, and both
+skipped-checks sections; PDF export round-trips through a real Chromium
+render of the same page; an owner (matched by email, reusing Phase 3's
+anonymous→authenticated account merge) can create, list and revoke a share
+link, and a revoked or expired link returns `410` on the next resolution.
+`uv run pytest -q` (Python) and `npm run lint`/`npm run build` (`apps/web`)
+both green in CI, including a new `web` job.
 
 ## Phase 5 — Analysis layer (LLM)
 
