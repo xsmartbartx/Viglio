@@ -22,6 +22,34 @@ class EvidenceView(BaseModel):
     captured_at: datetime
 
 
+class RemediationPrompt(BaseModel):
+    """The redaction-gated fix content attached to one finding —
+    docs/adr/ADR-0004-llm-boundary.md's structured shape. `source="template"`
+    is the deterministic, always-available fallback derived purely from the
+    check manifest; `source="llm"` is Claude-authored and only ever produced
+    by `generate_remediation()`, never by `build_report()` directly."""
+
+    check_id: str
+    source: Literal["template", "llm"] = "template"
+    explanation: str
+    impact: str
+    remediation_steps: list[str]
+    agent_prompt: str
+    estimated_effort: Literal["trivial", "small", "medium", "large"] | None = None
+
+
+class RemediationView(BaseModel):
+    """`RemediationPrompt` minus `check_id` — the shape actually embedded in
+    a `ReportFinding`, which already carries its own `check_id`."""
+
+    source: Literal["template", "llm"]
+    explanation: str
+    impact: str
+    remediation_steps: list[str]
+    agent_prompt: str
+    estimated_effort: Literal["trivial", "small", "medium", "large"] | None
+
+
 class ReportFinding(BaseModel):
     check_id: str
     category: str
@@ -30,7 +58,7 @@ class ReportFinding(BaseModel):
     confidence: Confidence
     verdict: Verdict
     summary: str
-    remediation: str
+    remediation: RemediationView
     references: list[str]
     evidence: EvidenceView | None
     fingerprint: str
@@ -42,9 +70,3 @@ class ReportDocument(BaseModel):
     score: Score
     generated_at: datetime
     findings: list[ReportFinding]
-
-
-class RemediationPrompt(BaseModel):
-    check_id: str
-    text: str
-    source: Literal["template", "llm"] = "template"
