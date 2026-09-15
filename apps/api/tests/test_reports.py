@@ -72,8 +72,43 @@ async def test_get_scan_report_returns_full_findings_for_a_completed_scan(client
     finding = body["findings"][0]
     assert finding["check_id"] == "VG-HDR-001"
     assert finding["category"] == "HDR"
-    assert finding["remediation"]
+    assert finding["remediation"]["source"] == "template"
+    assert finding["remediation"]["remediation_steps"]
+    assert finding["remediation"]["agent_prompt"]
+    assert finding["remediation"]["estimated_effort"] is None
     assert finding["evidence"] is None
+
+
+async def test_get_scan_report_surfaces_a_cached_llm_remediation(client):
+    job, scan, _account = await _make_completed_scan()
+
+    async with session_scope() as session:
+        from vigilo_orchestrator.remediation import cache_remediation
+        from vigilo_reporting.models import RemediationPrompt
+
+        await cache_remediation(
+            session,
+            "fp1",
+            "VG-HDR-001",
+            scan.registry_version,
+            RemediationPrompt(
+                check_id="VG-HDR-001",
+                source="llm",
+                explanation="llm explanation",
+                impact="llm impact",
+                remediation_steps=["llm step"],
+                agent_prompt="llm agent prompt",
+                estimated_effort="small",
+            ),
+        )
+
+    response = await client.get(f"/v1/scans/{job.id}/report")
+
+    assert response.status_code == 200
+    finding = response.json()["findings"][0]
+    assert finding["remediation"]["source"] == "llm"
+    assert finding["remediation"]["estimated_effort"] == "small"
+    assert finding["remediation"]["agent_prompt"] == "llm agent prompt"
 
 
 async def test_get_scan_report_reports_is_owner_true_for_the_authenticated_owner(client):

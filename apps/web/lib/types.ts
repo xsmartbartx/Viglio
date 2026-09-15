@@ -30,6 +30,17 @@ export interface EvidenceResponse {
   captured_at: string;
 }
 
+export type EstimatedEffort = "trivial" | "small" | "medium" | "large";
+
+export interface RemediationResponse {
+  source: "template" | "llm";
+  explanation: string;
+  impact: string;
+  remediation_steps: string[];
+  agent_prompt: string;
+  estimated_effort: EstimatedEffort | null;
+}
+
 export interface ReportFindingResponse {
   check_id: string;
   category: string;
@@ -38,7 +49,7 @@ export interface ReportFindingResponse {
   confidence: Confidence;
   verdict: Verdict;
   summary: string;
-  remediation: string;
+  remediation: RemediationResponse;
   references: string[];
   evidence: EvidenceResponse | null;
   fingerprint: string;
