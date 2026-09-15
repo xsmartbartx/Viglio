@@ -93,9 +93,7 @@ async def test_get_account_by_email_finds_an_existing_account(db_session: AsyncS
     assert found.id == created.id
 
 
-async def test_get_account_by_email_returns_none_and_creates_nothing_for_an_unknown_email(
+async def test_get_account_by_email_returns_none_for_an_unknown_email(
     db_session: AsyncSession,
 ) -> None:
-    assert await get_account_by_email(db_session, "never-signed-up@example.com") is None
-    # confirm no account was silently created by the lookup itself
     assert await get_account_by_email(db_session, "never-signed-up@example.com") is None

@@ -134,6 +134,38 @@ jobs:
       - run: uv sync --all-packages
       - run: uv run pytest packages/security/tests/test_ownership.py -v
 
+  # Phase 6's exit criterion: "proven by test — not just by code review —
+  # that no active-tier check is reachable against an unverified target
+  # under any code path." Same build-blocking standard as the two suites
+  # above; needs real Postgres (temporary_schema()), unlike them.
+  tier-gating-suite:
+    name: Tier gating suite (active-tier isolation — build blocking)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vigilo
+          POSTGRES_PASSWORD: vigilo-dev-secret
+          POSTGRES_DB: vigilo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vigilo -d vigilo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vigilo:vigilo-dev-secret@localhost:5432/vigilo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.11
+      - run: uv sync --all-packages
+      - run: uv run alembic -c packages/persistence/alembic.ini upgrade head
+      - run: uv run pytest packages/orchestrator/tests/test_tier_gating.py -v
+
   web:
     name: Web app (lint + build)
     runs-on: ubuntu-latest
