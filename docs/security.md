@@ -67,7 +67,7 @@ still deny), and a redirect-into-internal-space case.
 
 | Concern | Where it will live | Blocked on |
 | --- | --- | --- |
-| Rate governor (per-account, per-target-host, global, Redis-backed) | `packages/security` | Phase 6/7 — Phase 3 uses a minimal DB-derived ceiling instead, see §3 |
+| Rate governor (per-account, per-target-host, global, Redis-backed) | `packages/security` | Phase 6/7 — Phase 3 added a minimal ceiling check inside `resolve_authorization()` (§3), but the caller (`apps/api/src/vigilo_api/routers/scans.py`) still hardcodes `recent_scan_count_24h=0` on every call rather than computing a real count from the database, so the ceiling never actually triggers yet. Found during Phase 6 (which fixed the analogous hardcoded-tier gap in the same function, see the ADR-0003 Phase 6 addendum) but deliberately left unfixed — a separate, independent gap, not in that phase's scope. |
 | Abuse heuristics (enumeration patterns, target churn) | `packages/security` | Scan history to detect patterns against (Phase 3+) |
 | Redirect same-registrable-domain restriction | `packages/security/egress_guard.py` | Public-suffix-list dependency (Phase 1) |
 | Worker network isolation (the scan zone has no route to internal services) | Deployment topology, not application code | Phase 1 deployment target |
@@ -93,7 +93,11 @@ reducing it to `AuthorizationRequest`'s fields before calling this.
    `Account`/`Target` row created — only the audit event.
 2. `recent_scan_count_24h` over a fixed ceiling (20, a Phase 3 scope trim —
    the full Redis-backed governor is Phase 6/7) → **deny**, code
-   `RATE_LIMIT_EXCEEDED`.
+   `RATE_LIMIT_EXCEEDED`. **This branch is fully implemented and tested
+   here, but currently unreachable in practice** — `apps/api`'s
+   `submit_scan()` always passes `recent_scan_count_24h=0`, never a real
+   count (§2's "not yet implemented" table has the detail). The ceiling
+   logic itself is correct; nothing yet feeds it real data.
 3. `requested_tier == ACTIVE` without both `target_verification_status ==
    ACTIVE` *and* `ownership_proof_valid` → **downgrade to passive, not a
    rejection**. ADR-0003 says tier resolution "never upgrades" — a request

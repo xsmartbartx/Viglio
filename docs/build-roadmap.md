@@ -217,19 +217,62 @@ registry_version)`. A human with a real Anthropic key can complete this
 gap at any time by setting `ANTHROPIC_API_KEY` and re-running the scan
 above — nothing else changes.
 
-## Phase 6 — Active tier
+## Phase 6 — Active tier (scoped) ✅
 
-Ownership-gated active checks: `APP` (application logic), `AUT`
-(authentication surface), `INF` (infrastructure/DNS), plus the 7 `EXP`
-checks deferred from Phase 2 (directory listing, backup artefacts, debug
-routes, repository metadata paths — the `paths` probe, Tier 1 only per
-ADR-0003). `DAT` (data-platform posture) already shipped at passive tier in
-Phase 2 — see the ADR-0003 addendum for why. Request-budget enforcement
-(§8.5 of the Prooflight doc). Registry grows toward ~120 checks.
+Scoped down from the original paragraph, by explicit decision: `APP`
+(application logic)/`AUT` (authentication surface)/`INF`
+(infrastructure/DNS) are deferred to their own dedicated follow-up phase —
+unlike everything else below, they have no concrete check list or probe
+design anywhere in the docs, only one-line category descriptions
+(`docs/adr/ADR-0003-scan-authorization-model.md`'s Phase 6 addendum has the
+full reasoning). What shipped:
+
+**Two-layer tier-gating enforcement** — the phase's actual exit criterion,
+and a real, previously-undocumented gap: no code anywhere filtered which
+checks ran by `tier_required` against a scan's granted tier; every check
+ran unconditionally regardless of verification status. Fixed at both the
+probe layer (`run_probes(url, tier=Tier.PASSIVE, ...)` only fires the new
+`paths` probe's requests at `Tier.ACTIVE` — an unverified target must never
+even receive the hidden-path-enumeration requests, not just have the
+resulting findings filtered out) and the check layer (`plan_registry()`,
+`packages/checks`). A new build-blocking CI suite (`tier-gating-suite`)
+proves both directions — a passive job never produces an active finding,
+an active job does — so the guarantee can't pass vacuously.
+
+**The `paths` probe + the 7 `EXP` checks deferred from Phase 2**
+(`VG-EXP-006`..`012`: repository metadata, backup artefacts, exposed
+configuration, debug routes, test/staging routes, directory listing,
+default admin panels) — Tier 1 only, a small fixed candidate-path list
+(~29 paths total), per ADR-0003. `DAT` (data-platform posture) already
+shipped at passive tier in Phase 2 — see that same ADR's earlier addendum
+for why.
+
+**`budget_cost` as a descriptor field**, not the full dynamic request-budget
+planner (§8.5 of the Prooflight doc) the original paragraph named — that
+needs a `skipped` verdict state that doesn't exist yet, and nothing in the
+current registry comes close to the suggested ceilings for it to matter.
+Explicitly deferred, not silently dropped — see the ADR-0003 Phase 6
+addendum.
+
+**A second, independent gap fixed in the same phase**: `apps/api`'s
+`submit_scan()` was hardcoding `Tier.PASSIVE`/`False` into every
+authorization check, so no scan could ever actually be granted active tier
+— unrelated to the gating work above, but it would have shipped that work
+provably correct and practically inert. Fixed via a new read-only
+`get_account_by_email()` lookup for returning submitters only.
+
+Registry: 57 → 64 checks.
 
 **Done when:** it is proven by test — not just by code review — that no
 active-tier check is reachable against an unverified target under any code
-path.
+path. Verified live: a new-origin scan still grants passive tier and the
+worker log shows zero `paths`-probe requests; completing the existing
+Phase 3 DNS-TXT ownership-verification flow for a target, then resubmitting
+`POST /v1/scans` for that same origin/email with `requested_tier: active`,
+grants `granted_tier: "active"` for the first time anywhere in the product,
+and the resulting report shows real `VG-EXP-006`..`012` findings.
+`uv run pytest -q` (413 tests) and `uv run ruff check .` both green,
+including the new `tier-gating-suite` CI job.
 
 ## Phase 7 — Monetisation
 

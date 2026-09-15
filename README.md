@@ -213,7 +213,29 @@ Stop the local infra with `docker compose down` when done.
 
 ## Status
 
-**Phase 5 (Analysis layer / LLM) complete.** Every failed finding now gets
+**Phase 6 (Active tier, scoped) complete.** Every check now runs behind a
+real, two-layer tier gate: an unverified target's scan never even makes
+the `paths` probe's hidden-path-enumeration requests (probe layer), and an
+active-tier-only check is never in the list evaluated at all for a passive
+scan (check layer) — proven by a new build-blocking CI suite,
+`tier-gating-suite`, matching the egress-guard/ownership-verification
+standard. This closed a real, previously-undocumented gap: nothing had
+ever acted on a scan's granted tier before, so the moment any active-tier
+check existed it would have run against every scan regardless of
+verification. Seven of those checks now exist — `VG-EXP-006`..`012`,
+deferred from Phase 2 (repository metadata, backup artefacts, exposed
+config, debug/test routes, directory listing, default admin panels), via a
+new `paths` probe with a small, fixed candidate list. A second,
+independent gap surfaced and got fixed in the same phase:
+`apps/api`'s scan-submission endpoint was hardcoding "unverified" into
+every authorization check, so no scan could ever actually be granted
+active tier — fixed for returning, already-verified submitters, without
+touching first-time submitters' existing "deny leaves no account behind"
+behavior. `APP`/`AUT`/`INF` (three more roadmap-named categories) are
+deliberately deferred to their own follow-up — see
+`docs/build-roadmap.md`'s Phase 6 entry for why.
+
+**Phase 5 (Analysis layer / LLM).** Every failed finding now gets
 Claude-backed, structured remediation — `explanation`/`impact`/ordered
 `remediation_steps`/an `estimated_effort` badge/a copy-to-clipboard
 `agent_prompt` block (`apps/web`'s `FindingCard`/`AgentPromptBlock`) — the

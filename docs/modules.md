@@ -257,13 +257,26 @@ Probe families:
 | `render` | DOM after load, network waterfall, third-party origins contacted |
 | `bundle` | Fetched JS/CSS assets, source-map presence, inlined configuration |
 | `wellknown` | `robots.txt`, `sitemap.xml`, `security.txt`, `manifest.json` |
-| `paths` | Existence of a fixed, published list of commonly exposed artefacts (Tier 1 only) |
+| `paths` | Existence of a fixed, published list of commonly exposed artefacts (Tier 1 only) — **implemented, Phase 6** |
 | `subdomain` | Candidate hostnames from certificate transparency and passive DNS (Tier 1) |
 | `repo` | Read-only file tree and content of a connected repository (opt-in) |
 
 **Boundaries.** A probe records what happened. It never interprets, never assigns severity,
 never imports `checks`. It cannot decide its own budget — the budget arrives in the job
 envelope.
+
+**Deviation (Phase 1+, Phase 6 addition).** `run_probes(url, tier=Tier.PASSIVE,
+resolver=None, transport=None) -> EvidenceBundle`
+(`packages/probes/src/vigilo_probes/orchestrator.py`) is the actual entry
+point — one concrete orchestration function assembling every sub-probe
+into a sealed `EvidenceBundle`, not a per-probe `run(probe_id, target,
+budget)` dispatcher as this section's sketch below still shows (this
+predates Phase 6, unchanged here). **Phase 6 adds** the `tier` parameter —
+the probe-layer half of active-tier gating: `run_paths()` (`paths_probe.py`)
+only runs when `tier == Tier.ACTIVE`, so an unverified target never
+receives the `paths` probe's hidden-path-enumeration requests at all — not
+merely has the resulting findings filtered out afterward. See
+`docs/adr/ADR-0003-scan-authorization-model.md`'s Phase 6 addendum.
 
 **API**
 
@@ -292,6 +305,25 @@ severity, required evidence, and the remediation template. The function returns 
 bundle. A check that cannot find the evidence it declared returns `inconclusive`, never
 `passed`.
 
+**Deviation (Phase 1+).** The actual `CheckManifest`
+(`packages/core/src/vigilo_core/models.py`) uses `tier_required: Tier`
+(`passive`/`active`), not `intrusiveness: Level`, and has no `requires:
+list[EvidenceKind]` field — evidence-dependency is instead expressed
+procedurally via the `@requires("field_name")` decorator
+(`packages/checks/src/vigilo_checks/registry.py`), checked at runtime
+against `EvidenceBundle`'s matching attribute. This predates Phase 6,
+unchanged here. **Phase 6 adds** `budget_cost: int = Field(default=0,
+ge=0)` — the marginal request cost a check's own evidence needs beyond its
+probe's baseline traffic. Defaults to 0 for every check that predates this
+field: checks are pure functions over an already-fetched `EvidenceBundle`
+(ADR-0001 rule 2), so their true marginal cost is zero — only non-zero for
+the 7 new `paths`-dependent `EXP` checks, whose combined `budget_cost`
+reconstructs `paths_probe.py`'s fixed candidate-path count. This is a
+descriptor-completeness field, not a runtime-enforced budget — see
+`docs/adr/ADR-0003-scan-authorization-model.md`'s Phase 6 addendum for why
+the full dynamic "drop lowest-weight checks over budget" planner
+(§8.5 of the Prooflight doc) is explicitly deferred, not silently dropped.
+
 **API**
 
 ```python
@@ -305,6 +337,14 @@ class CheckManifest:
     remediation: RemediationTemplate
 
 def evaluate(evidence: EvidenceBundle) -> Verdict   # passed | failed | inconclusive | not_applicable
+
+# Phase 6 (packages/checks/src/vigilo_checks/findings.py):
+def plan_registry(registry: list[Check], tier: Tier) -> list[Check]
+    # The check-layer half of active-tier gating — the checks a scan is
+    # allowed to evaluate, given its granted tier. Necessary in addition to
+    # the probe-layer gate above: run_registry()/to_findings() produce one
+    # Finding per check regardless of verdict, so an unreachable check must
+    # never be in the list passed to run_registry() at all.
 ```
 
 **Dependencies.** core only. This is deliberate and enforced: the import allowlist for
@@ -463,8 +503,10 @@ modules that do those things and owns the persisted scan record.
 
 **API** (Phase 3 implements the persistence-facing half —
 `create_scan_job`/`advance`/`record_scan_result`/`get_scan_by_job_id` in
-`service.py` — plus the two ARQ task bodies in `jobs.py` that tie
-probes+checks+scoring+integrations together and run inside `apps/scanner`.
+`service.py` — plus the ARQ task bodies in `jobs.py` (four as of Phase 6:
+`run_scan_job`, `verify_ownership_job`, `render_report_pdf_job`,
+`generate_remediations_job`) that tie probes+checks+scoring+integrations
+together and run inside `apps/scanner`.
 `create_scan(account, target, mode)`/`stream(scan_id)` as a single
 higher-level entry point, and the job-envelope signing below, are not yet
 built — Phase 3's `apps/api` calls `create_scan_job` directly rather than
@@ -495,6 +537,8 @@ cache_remediation(session, fingerprint, check_id, registry_version, prompt) -> N
 # ARQ task bodies (packages/orchestrator/src/vigilo_orchestrator/jobs.py),
 # registered by apps/scanner's WorkerSettings, never called from apps/api:
 run_scan_job(ctx, scan_job_id: str) -> None
+    # Phase 6: reads job.tier and threads it into both run_probes(tier=...)
+    # and plan_registry(REGISTRY, tier) — the two-layer active-tier gate.
 verify_ownership_job(ctx, proof_id: str) -> None
 render_report_pdf_job(ctx, report_id: str) -> None
 generate_remediations_job(ctx, scan_job_id: str) -> None   # Phase 5, auto-enqueued from run_scan_job
@@ -507,10 +551,17 @@ Phase 5 — `generate_remediations_job` calls
 `vigilo_reporting.generate_remediation`).
 
 **Security.** Signs the job envelope handed to the scan zone. The envelope carries the
-resolved tier and the request budget; a worker cannot widen its own scope. (Phase 3's
-envelope is just the `scan_job_id`/`proof_id` string ARQ passes — the worker re-reads
-the authorized tier from the `ScanJobRow` itself rather than trusting a signed payload;
-real envelope-signing is deferred alongside request-budget enforcement, Phase 6.)
+resolved tier and the request budget; a worker cannot widen its own scope. (The
+envelope actually handed to the worker is just the `scan_job_id`/`proof_id`
+string ARQ passes — the worker re-reads the authorized tier from the
+`ScanJobRow` itself rather than trusting a signed payload. This is no
+longer a purely aspirational note as of Phase 6: `run_scan_job` now
+actually reads and acts on `job.tier` — see the two-layer gate above and
+`docs/adr/ADR-0003-scan-authorization-model.md`'s Phase 6 addendum. Real
+envelope-signing, and the full dynamic request-budget planner, both remain
+deferred — no specific phase claims them yet; not to be confused with
+`CheckManifest.budget_cost`, a Phase 6 descriptor field with no runtime
+enforcement engine behind it, per `docs/modules.md` §4.)
 
 ---
 

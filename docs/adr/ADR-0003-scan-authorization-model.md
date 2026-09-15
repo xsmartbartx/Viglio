@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Accepted; implemented (Phase 3) — see the Phase 3 addendum below |
+| Status | Accepted; implemented (Phase 3) — see the Phase 3 and Phase 6 addenda below |
 | Date | 2026-09-11 |
 
 ## Context
@@ -159,10 +159,91 @@ triggers do not fire for `TRUNCATE` at all, requiring a second,
 statement-level trigger. Role-based `REVOKE` remains a reasonable
 defense-in-depth addition for Phase 7 hardening, not a Phase 3 requirement.
 
+## Addendum (Phase 6): tier-gating enforcement, and a real gap it exposed
+
+`resolve_authorization()` has decided a scan's *granted tier* since Phase 3.
+Nothing downstream ever acted on that decision until now — recorded here
+because it's exactly the kind of authorization-model change standing rule
+2 (`docs/build-roadmap.md`) requires an explicit callout for, even though
+no line of `resolve_authorization()` itself changed.
+
+**Tier-gating is enforced at two layers, not one, and both were missing.**
+`run_registry()`/`to_findings()` (`packages/checks/src/vigilo_checks/findings.py`)
+produce exactly one `Finding` per check passed in, regardless of verdict —
+the existing `@requires("field")` decorator only demotes an unreachable
+check to `INCONCLUSIVE`, it doesn't remove the `Finding` row. So check-layer
+filtering (`plan_registry(registry, tier)`, new this phase) is necessary but
+not sufficient on its own: a probe-layer gate is equally required, or the
+real, SSRF-relevant HTTP requests (the new `paths` probe's hidden-path
+enumeration) would still fire against an unverified target even if the
+resulting evidence were discarded afterward. `run_probes(url, tier=
+Tier.PASSIVE, ...)` (`packages/probes/src/vigilo_probes/orchestrator.py`)
+only calls `run_paths()` at `Tier.ACTIVE`. Both gates default closed
+(`Tier.PASSIVE`), so a caller that forgets to pass a tier explicitly — like
+`apps/cli`, which has no ownership-verification mechanism at all — fails
+safe. Proven by a dedicated, build-blocking CI suite
+(`tier-gating-suite`, `packages/orchestrator/tests/test_tier_gating.py`),
+same standard as the egress guard and ownership verification: both a
+negative assertion (a passive-tier job never produces an active-tier
+`Finding`, even when fed evidence that would trigger one) and a positive
+one (an active-tier job does), so a bug that made gating unconditionally
+closed can't pass the suite vacuously.
+
+**A real, independent gap surfaced and was fixed in the same phase:**
+`apps/api/src/vigilo_api/routers/scans.py`'s `submit_scan()` was calling
+`resolve_authorization()` with `target_verification_status`/
+`ownership_proof_valid` hardcoded to `Tier.PASSIVE`/`False` for every
+request — never looking up a returning submitter's real, already-correctly-
+tracked verification state (`vigilo_project.repository.get_target_by_origin()`/
+`has_valid_ownership_proof()` already existed and worked, just weren't
+called from here). This meant no scan could ever be granted active tier,
+for anyone, verified or not — independent of and unrelated to the
+tier-gating work above, but it would have made that work provably correct
+and practically inert (a gate nothing could ever reach in the first place)
+had it shipped unfixed. Fixed by a read-only lookup
+(`vigilo_identity.repository.get_account_by_email()`, new) performed only
+for a *returning* submitter — a brand-new submitter (no account yet) takes
+exactly the prior code path, nothing read or created, preserving "a denied
+scan may have no account yet" (`docs/data-model.md`'s `audit_events
+.account_id` note) for the only case that invariant actually protects.
+`target_opt_out`/`recent_scan_count_24h` remain separately hardcoded — both
+already-documented Phase 3 scope trims (`docs/security.md` §2), not new
+findings, not touched by this fix.
+
+**Request-budget enforcement is deliberately not built this phase, despite
+`docs/build-roadmap.md`'s Phase 6 paragraph naming it.** `CheckManifest`
+gained a `budget_cost` descriptor field (default `0` — every check that
+predates it costs nothing marginal, since checks are pure functions over an
+already-fetched bundle; only the 7 new `paths`-dependent `EXP` checks set a
+real value). The dynamic planner §8.5 of the Prooflight doc actually
+describes — "drops the lowest-weight checks if the plan exceeds budget,
+records them as `skipped:budget`" — needs a `skipped` verdict `Verdict`
+doesn't have, and nothing in the current registry (57 passive + 7 active
+checks, ~29 fixed `paths`-probe requests) comes close to the suggested
+ceilings (60 passive / 220 active) for that engine to actually do anything
+yet. A static test (`packages/checks/tests/test_findings.py`) proves the
+registry's summed `budget_cost` stays within both ceilings today — "provable
+by construction" for what exists, without runtime machinery that has
+nothing to enforce.
+
+**`APP`/`AUT`/`INF` (application logic, authentication surface,
+infrastructure/DNS) are deferred to their own follow-up phase**, not built
+alongside the above. Unlike the 7 deferred `EXP` checks (fully specified by
+this ADR's Phase 2 addendum) or `paths`/`subdomain` (named and described in
+`docs/modules.md` §3), these three categories have no concrete check list
+or probe design anywhere in the documentation — only one-line category
+descriptions in `docs/prooflight-vision-and-architecture.md` §7.2. Building
+CORS-preflight testing, auth-endpoint throttling probes, redirect-parameter
+fuzzing and subdomain enumeration from a one-line description each, rushed
+alongside the well-specified work above, would mean designing real new
+attack-surface probes without the deliberate reference-standard-plus-golden-
+fixture rigor standing rule 1 requires for every other check in this
+registry.
+
 ## References
 
-`docs/vision.md` §2, §5, §7; `docs/prooflight-vision-and-architecture.md` §4;
-`docs/modules.md` §2, §2a, §2b, §3; `brand.config.json`
+`docs/vision.md` §2, §5, §7; `docs/prooflight-vision-and-architecture.md` §4,
+§7.2, §8.5; `docs/modules.md` §2, §2a, §2b, §3, §4; `brand.config.json`
 (`namespaces.dnsVerificationKey`, `namespaces.wellKnownPath`);
 `docs/build-roadmap.md` Phase 2, Phase 3 and Phase 6; `docs/data-model.md`;
-`docs/security.md` §3-§5.
+`docs/security.md` §2-§6.
