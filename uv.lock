@@ -1518,6 +1518,7 @@ source = { editable = "packages/reporting" }
 dependencies = [
     { name = "playwright" },
     { name = "vigilo-core" },
+    { name = "vigilo-integrations" },
 ]
 
 [package.dev-dependencies]
@@ -1529,6 +1530,7 @@ dev = [
 requires-dist = [
     { name = "playwright", specifier = ">=1.48" },
     { name = "vigilo-core", editable = "packages/core" },
+    { name = "vigilo-integrations", editable = "packages/integrations" },
 ]
 
 [package.metadata.requires-dev]
