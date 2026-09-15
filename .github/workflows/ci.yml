@@ -68,6 +68,10 @@ jobs:
       OBJECT_STORE_ACCESS_KEY: vigilo
       OBJECT_STORE_SECRET_KEY: vigilo-dev-secret
       OBJECT_STORE_BUCKET: vigilo-evidence
+      # render_pdf() reads this to build the Playwright navigation URL — CI
+      # never launches a real browser (render_pdf's own tests inject a fake
+      # pdf_renderer), but this exercises the "configured" code path.
+      WEB_APP_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
@@ -129,3 +133,20 @@ jobs:
       - run: uv python install 3.11
       - run: uv sync --all-packages
       - run: uv run pytest packages/security/tests/test_ownership.py -v
+
+  web:
+    name: Web app (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: apps/web/.nvmrc
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
