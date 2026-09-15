@@ -11,6 +11,7 @@ from vigilo_core.evidence import (
     EvidenceBundle,
     FingerprintObservation,
     HttpObservation,
+    PathObservation,
     TlsObservation,
     WellKnownObservation,
 )
@@ -24,9 +25,10 @@ def seal(
     bundle: BundleObservation | None = None,
     wellknown: WellKnownObservation | None = None,
     backends: BackendObservation | None = None,
+    paths: PathObservation | None = None,
 ) -> EvidenceBundle:
     bundle_id = EvidenceBundle.compute_id(
-        target_origin, http, tls, fingerprint, bundle, wellknown, backends
+        target_origin, http, tls, fingerprint, bundle, wellknown, backends, paths
     )
     return EvidenceBundle(
         bundle_id=bundle_id,
@@ -38,4 +40,5 @@ def seal(
         bundle=bundle,
         wellknown=wellknown,
         backends=backends,
+        paths=paths,
     )

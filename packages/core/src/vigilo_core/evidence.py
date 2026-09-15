@@ -127,6 +127,31 @@ class BackendObservation(BaseModel):
     detected: list[DetectedBackend] = Field(default_factory=list)
 
 
+class DetectedPath(BaseModel):
+    """One hit from the `paths` probe's fixed candidate list
+    (docs/modules.md §3: "a fixed, published list of commonly exposed
+    artefacts (Tier 1 only)"). `indicator` is a short, human-readable signal
+    derived from the response (e.g. a directory-listing title match) — never
+    raw body content, matching `DetectedBackend.probe_indicates_open`'s
+    existing boolean-signal-not-raw-body precedent."""
+
+    path: str
+    kind: str
+    status_code: int
+    indicator: str
+
+
+class PathObservation(BaseModel):
+    """Tier-1-only: blind enumeration of a fixed, non-conventional path
+    list, distinct from `WellKnownObservation`'s conventionally-public
+    paths. `checked` records every candidate attempted (including ones that
+    404'd), so a report can show "we checked, found nothing" rather than
+    silence."""
+
+    checked: list[str] = Field(default_factory=list)
+    detected: list[DetectedPath] = Field(default_factory=list)
+
+
 class EvidenceBundle(BaseModel):
     """The immutable, content-addressed evidence set one scan produces.
 
@@ -145,6 +170,7 @@ class EvidenceBundle(BaseModel):
     bundle: BundleObservation | None = None
     wellknown: WellKnownObservation | None = None
     backends: BackendObservation | None = None
+    paths: PathObservation | None = None
 
     @staticmethod
     def compute_id(
@@ -155,6 +181,7 @@ class EvidenceBundle(BaseModel):
         bundle: BundleObservation | None = None,
         wellknown: WellKnownObservation | None = None,
         backends: BackendObservation | None = None,
+        paths: PathObservation | None = None,
     ) -> str:
         payload = {
             "target_origin": target_origin,
@@ -164,6 +191,7 @@ class EvidenceBundle(BaseModel):
             "bundle": bundle.model_dump(mode="json") if bundle else None,
             "wellknown": wellknown.model_dump(mode="json") if wellknown else None,
             "backends": backends.model_dump(mode="json") if backends else None,
+            "paths": paths.model_dump(mode="json") if paths else None,
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

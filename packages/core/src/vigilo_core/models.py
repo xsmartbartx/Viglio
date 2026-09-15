@@ -97,6 +97,15 @@ class CheckManifest(BaseModel):
     false_positive_notes: str = ""
     introduced_in: str
     deprecated_in: str | None = None
+    # Marginal request cost this check adds beyond its probe's own baseline
+    # traffic (docs/prooflight-vision-and-architecture.md §7.1/§8.5).
+    # Defaults to 0: checks are pure functions over an already-fetched
+    # EvidenceBundle (ADR-0001 rule 2) and cost nothing themselves — every
+    # existing probe already runs unconditionally regardless of which
+    # checks are enabled. Only non-zero for checks whose evidence comes from
+    # a probe that varies its own request count per check, e.g. the `paths`
+    # probe (Phase 6).
+    budget_cost: int = Field(default=0, ge=0)
 
 
 class Evidence(BaseModel):

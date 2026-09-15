@@ -6,7 +6,7 @@ import hashlib
 
 from vigilo_checks.registry import Check, CheckResult
 from vigilo_core.evidence import EvidenceBundle
-from vigilo_core.models import Evidence, Finding
+from vigilo_core.models import Evidence, Finding, Tier
 
 
 def _fingerprint(check_id: str, target_origin: str) -> str:
@@ -50,3 +50,20 @@ def to_findings(
 def run_registry(bundle: EvidenceBundle, registry: list[Check]) -> list[Finding]:
     results = [(check, check.evaluate(bundle)) for check in registry]
     return to_findings(bundle, results)
+
+
+def plan_registry(registry: list[Check], tier: Tier) -> list[Check]:
+    """Check-layer tier gating (docs/adr/ADR-0003-scan-authorization-model.md):
+    the checks a scan is *allowed* to evaluate, given its granted tier.
+    `run_registry`/`to_findings` produce exactly one `Finding` per check
+    passed in, regardless of verdict — an unreachable active-tier check
+    isn't safely represented by letting it run and fall back to
+    `INCONCLUSIVE` via `@requires()`; it must never be in the list at all.
+    Plain equality, matching `resolve_authorization()`'s own idiom — `Tier`
+    has exactly two values and every tier comparison elsewhere in this
+    codebase already uses equality, not an ordering abstraction."""
+    return [
+        check
+        for check in registry
+        if check.manifest.tier_required == Tier.PASSIVE or tier == Tier.ACTIVE
+    ]
