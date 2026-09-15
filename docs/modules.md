@@ -41,6 +41,7 @@ flowchart TD
     CORE --> SCORING
     CORE --> REPORTING
     CORE --> INTEG
+    INTEG --> REPORTING
     PERSIST --> SEC
     PERSIST --> IDENTITY
     PERSIST --> PROJECT
@@ -357,24 +358,41 @@ source of truth. `render_badge` ships this phase only as a pure function —
 no API route or caching yet; that lands in Phase 8 alongside
 `brand.config.json`'s already-reserved `badgePath`.
 
+**Deviation (Phase 5).** `generate_remediation` did not simply swap its body
+for a Claude call in place, as the Phase 4 note above once predicted —
+it split in two, per `docs/adr/ADR-0004-llm-boundary.md`:
+`template_remediation()` stays pure/synchronous and is the *only* remediation
+path `build_report()` is allowed to call directly, so a report render never
+awaits an LLM or depends on its availability; the new async
+`generate_remediation()` (redaction-gated prompt, strict-JSON-validate-or-
+discard, template fallback on any failure) is called only from
+`packages/orchestrator`'s `generate_remediations_job`, never from a render
+path. `build_report()` gained an optional `remediations_by_check_id` param
+— a dict of already-generated results the caller fetched from the
+`remediation_cache` table (`docs/data-model.md`); the call site *did*
+change, correcting the Phase 4 note's prediction that it wouldn't.
+
 **API**
 
 ```python
-build_report(target_origin, score, findings, manifests_by_check_id, generated_at) -> ReportDocument
+build_report(target_origin, score, findings, manifests_by_check_id, generated_at, remediations_by_check_id=None) -> ReportDocument
 render_pdf(scan_job_id, pdf_renderer=None) -> bytes
 render_badge(score, generated_at) -> str   # SVG
-generate_remediation(finding, manifest, stack_profile=None) -> RemediationPrompt
+template_remediation(finding, manifest) -> RemediationPrompt
+generate_remediation(finding, manifest, stack_profile=None, llm_caller=None) -> RemediationPrompt
 ```
 
-**Dependencies.** core only. `render_pdf` also depends on the third-party
-`playwright` package and reads `WEB_APP_URL` from `core`'s config — no
-workspace package beyond `core`. Phase 5 adds `integrations` (LLM provider)
-when `generate_remediation`'s body swaps from a static template to a Claude
-call; the call site here won't change.
+**Dependencies.** core, integrations (Phase 5 — `generate_remediation`'s
+default `llm_caller` lazily imports `vigilo_integrations.generate_remediation_text`,
+matching `render_pdf`'s lazy Playwright import). `render_pdf` also reads
+`WEB_APP_URL` from `core`'s config.
 
 **Security.** Output validation before release: no raw evidence, no unredacted secret, no
 internal identifier. If the LLM provider fails, the module falls back to the static
-remediation template in the check manifest.
+remediation template in the check manifest. `generate_remediation`'s prompt
+construction is allowlist-based, not a general redaction filter — see
+`docs/adr/ADR-0004-llm-boundary.md` for exactly which fields it reads and
+the named residual prompt-injection risk from untrusted finding content.
 
 ---
 
@@ -385,7 +403,7 @@ remediation template in the check manifest.
 | Adapter | Purpose |
 | --- | --- |
 | `repo` | Read-only repository access (installation-scoped token) |
-| `llm` | Report narrative and remediation prompt generation |
+| `llm` | Claude text generation, via Anthropic's Messages API (Phase 5) |
 | `mail` | Transactional email |
 | `billing` | Subscription state via merchant of record webhooks |
 | `storage` | Object store reads and writes |
@@ -393,10 +411,18 @@ remediation template in the check manifest.
 **Boundaries.** One adapter per provider. Business logic never talks to a provider SDK
 directly. Every response is validated against a schema before it leaves the adapter.
 
+**Deviation (Phase 5).** `llm.py` matches `mail.py`'s existing "no SDK — a
+single POST is all the provider needs" precedent: a raw `httpx` call to
+Anthropic's Messages API rather than the `anthropic` SDK, keeping this
+package's dependency footprint unchanged. It validates only its own
+response shape (a 2xx with text content); the Vigilo-domain JSON schema
+inside that text is `packages/reporting`'s concern, one layer up.
+
 **API**
 
 ```python
 call(adapter_id, request: AdapterRequest) -> AdapterResponse
+generate_remediation_text(prompt, system=None, transport=None) -> str
 ```
 
 **Dependencies.** core.
@@ -462,16 +488,23 @@ create_share_link(session, report_id, expires_in_days=None) -> tuple[ShareLink, 
 resolve_share_link(session, token) -> ShareLink | None
 revoke_share_link(session, share_link_id) -> ShareLink
 
+# Phase 5 — remediation cache repository (packages/orchestrator/src/vigilo_orchestrator/remediation.py):
+get_remediations_for_findings(session, findings, registry_version) -> dict[str, RemediationPrompt]   # bulk, keyed by check_id
+cache_remediation(session, fingerprint, check_id, registry_version, prompt) -> None   # no-op unless prompt.source == "llm"
+
 # ARQ task bodies (packages/orchestrator/src/vigilo_orchestrator/jobs.py),
 # registered by apps/scanner's WorkerSettings, never called from apps/api:
 run_scan_job(ctx, scan_job_id: str) -> None
 verify_ownership_job(ctx, proof_id: str) -> None
 render_report_pdf_job(ctx, report_id: str) -> None
+generate_remediations_job(ctx, scan_job_id: str) -> None   # Phase 5, auto-enqueued from run_scan_job
 ```
 
 **Dependencies.** core, persistence, security, probes, checks, scoring,
 integrations, identity, project, reporting (Phase 4 — `render_report_pdf_job`
-calls `vigilo_reporting.render_pdf`/`vigilo_integrations.put_report_pdf`).
+calls `vigilo_reporting.render_pdf`/`vigilo_integrations.put_report_pdf`;
+Phase 5 — `generate_remediations_job` calls
+`vigilo_reporting.generate_remediation`).
 
 **Security.** Signs the job envelope handed to the scan zone. The envelope carries the
 resolved tier and the request budget; a worker cannot widen its own scope. (Phase 3's

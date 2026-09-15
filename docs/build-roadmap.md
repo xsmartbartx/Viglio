@@ -158,13 +158,31 @@ sign-in once. `uv run pytest -q` (361 tests) and `uv run ruff check .`
 (Python), `npm run lint`/`npm run build` (`apps/web`) all green, including a
 new `web` CI job.
 
-## Phase 5 — Analysis layer (LLM)
+## Phase 5 — Analysis layer (LLM) ✅
 
-Claude-backed report narrative and remediation-prompt generation
-(`packages/reporting`), strictly additive per ADR-0001 rule 2 — it attaches
-prose to findings that already exist and never creates, deletes, reclassifies
-or re-ranks one. Redaction-gated prompt construction (nothing enters a prompt
-unredacted). Template fallback when the provider is unavailable.
+Claude-backed, structured per-finding remediation
+(`explanation`/`impact`/`remediation_steps`/`agent_prompt`/
+`estimated_effort` — `docs/prooflight-vision-and-architecture.md` §9.3's
+exact shape), strictly additive per `docs/adr/ADR-0004-llm-boundary.md`
+(replacing a stale "ADR-0001 rule 2" citation this paragraph used to carry —
+checked, and that rule is the unrelated probe/check separation) — it
+attaches prose to findings that already exist and never creates, deletes,
+reclassifies or re-ranks one, never sets a score/grade/severity/verdict.
+Redaction is allowlist-based (`finding.title`/`summary`/`severity`,
+`manifest.description`/`category`, `finding.evidence.matched_indicator` if
+present — never `target_origin`, never the raw evidence bundle), the LLM's
+JSON response is strictly schema-validated and discarded whole on any
+failure, and generation happens in a new background job
+(`generate_remediations_job`, `packages/orchestrator`) auto-enqueued right
+after scan scoring — never inline in `run_scan_job`, so a report render
+never awaits or depends on the LLM. Results cache by `(fingerprint,
+registry_version)` (a new `remediation_cache` table), so a repeat scan of
+the same target skips the LLM entirely on a cache hit — the cost mitigation
+the Prooflight doc's own risk register calls for. `apps/web`'s `FindingCard`
+now surfaces the structured output, including a dedicated, copy-to-clipboard
+`agent_prompt` block — the README's headline "paste-ready fix for every
+finding" promise, built for real this phase rather than implied by generic
+template text.
 
 **Done when:** the LLM provider can be switched off entirely and the product
 still ships a complete report from static remediation templates.

@@ -152,14 +152,17 @@ See `docs/security.md` and ADR 0003.
 ## Local development
 
 Requires [`uv`](https://docs.astral.sh/uv/), Docker, and Docker Compose. Real
-Clerk/Postmark accounts are only needed to exercise auth/email end to end —
-everything else runs locally with no third-party accounts.
+Clerk/Postmark/Anthropic accounts are only needed to exercise auth/email/
+LLM-backed remediation end to end — everything else runs locally with no
+third-party accounts, and a scan completes with template-based remediation
+text if `ANTHROPIC_API_KEY` is unset (a hard availability requirement, not
+a fallback of convenience — see `docs/adr/ADR-0004-llm-boundary.md`).
 
 ```bash
-cp .env.example .env            # fill CLERK_SECRET_KEY/CLERK_JWKS_URL/POSTMARK_SERVER_TOKEN
-                                 # to exercise auth/email; WEB_APP_URL defaults to
-                                 # http://localhost:3000 (apps/web below) — the rest
-                                 # works with no third-party accounts at all
+cp .env.example .env            # fill CLERK_SECRET_KEY/CLERK_JWKS_URL/POSTMARK_SERVER_TOKEN/
+                                 # ANTHROPIC_API_KEY to exercise auth/email/LLM remediation;
+                                 # WEB_APP_URL defaults to http://localhost:3000 (apps/web
+                                 # below) — the rest works with no third-party accounts at all
 uv sync --all-packages          # installs every package/app into one .venv
 uv run playwright install chromium   # one-time: the PDF-export render target
 docker compose up -d            # postgres, redis, minio — bound to localhost only
@@ -210,17 +213,34 @@ Stop the local infra with `docker compose down` when done.
 
 ## Status
 
-**Phase 4 (Report experience) complete.** `apps/web` is the repo's first
+**Phase 5 (Analysis layer / LLM) complete.** Every failed finding now gets
+Claude-backed, structured remediation — `explanation`/`impact`/ordered
+`remediation_steps`/an `estimated_effort` badge/a copy-to-clipboard
+`agent_prompt` block (`apps/web`'s `FindingCard`/`AgentPromptBlock`) — the
+README's headline "paste-ready fix for every finding" promise, built for
+real. Generation happens in a new background job
+(`generate_remediations_job`) auto-enqueued right after scan scoring, never
+inline in the scan pipeline, so a scan's completion and a report's ability
+to render never depend on LLM availability or latency
+(`docs/adr/ADR-0004-llm-boundary.md`'s hard rule). Results cache by
+`(fingerprint, registry_version)` in a new `remediation_cache` table, so a
+repeat scan of the same target skips the LLM entirely on a cache hit.
+Redaction is allowlist-based (an explicit, reviewed field list — never
+`target_origin`, never the raw evidence bundle) and the model's JSON
+response is strictly schema-validated and discarded whole on any failure,
+falling back to the same deterministic template text Phase 4 always
+rendered — verified by actually running a scan with `ANTHROPIC_API_KEY`
+unset and confirming every finding still shows `source: "template"`.
+
+**Phase 4 (Report experience).** `apps/web` is the repo's first
 TypeScript app (Next.js 16 + Clerk) and gives a scan an actual face: a
 public `/reports/{scanId}` page with score, severity-grouped findings,
 remediation text, evidence panels, and `COULDN'T CHECK`/`NOT APPLICABLE`
 rendered as two distinct, honestly-labelled sections — never silently
 folded into "passed." A new `packages/reporting` renders that same data as
-pure functions (`build_report`/`generate_remediation`, deterministic only —
-Phase 5 swaps one function's internals for an LLM call without changing the
-call site) and exports it to PDF by driving Playwright against the *live*
-web page (`?print=1`), one layout source of truth rather than a second
-templating system. `reports`/`share_links` joined the schema
+pure functions (`build_report`) and exports it to PDF by driving Playwright
+against the *live* web page (`?print=1`), one layout source of truth rather
+than a second templating system. `reports`/`share_links` joined the schema
 (`docs/data-model.md`): the full `ShareLink` entity (hashed, expiring,
 revocable tokens with view counts) ships additively on top of Phase 3's
 no-login scan-UUID access, not a replacement for it. A real gap surfaced

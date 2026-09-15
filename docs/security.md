@@ -8,9 +8,11 @@ Referenced by `docs/architecture.md` and ADR-0003.
 
 **Phase 0** shipped the egress guard only. **Phase 3** adds scan
 authorization, ownership verification and the audit-trail writer (§3-§5
-below) — the rate governor and abuse heuristics remain future work (§6).
-Redaction (`redact()`) is implemented in `packages/core`, not here, since it
-has no I/O and no security *decision* to make — see `docs/modules.md` §1.
+below) — the rate governor and abuse heuristics remain future work (§2).
+**Phase 5** adds the LLM prompt boundary (§6) — the first place an
+untrusted, target-controlled string reaches a third-party model. Redaction
+(`redact()`) is implemented in `packages/core`, not here, since it has no
+I/O and no security *decision* to make — see `docs/modules.md` §1.
 
 ---
 
@@ -158,9 +160,45 @@ grant, because the database has one owning role and Postgres owners bypass
 migrations (not the ORM-only `Base.metadata.create_all()` other tests use)
 and proves `UPDATE`, `DELETE`, and `TRUNCATE` all raise.
 
+## 6. LLM prompt boundary (`generate_remediation`)
+
+**Status: implemented, `packages/reporting/src/vigilo_reporting/remediation.py`.**
+Full decision record: `docs/adr/ADR-0004-llm-boundary.md`. Summarized here
+because it's a real, if partial, mitigation for a genuine untrusted-input
+surface, matching this document's scope.
+
+**The attack surface.** A finding's `summary`/`title`/`evidence.
+matched_indicator` ultimately derive from a real HTTP response the
+*scanned target* controls — not a trusted first-party source. That content
+is embedded in a prompt sent to Claude, and the model's `agent_prompt`
+output is explicitly meant to be pasted into a user's own AI coding tool —
+a real downstream execution context. A malicious or compromised target
+could in principle craft response content designed to hijack the
+remediation prompt.
+
+**Mitigation, and its limits.** Two structural backstops, neither a
+complete defense: (1) the prompt-construction call site only reads from an
+explicit allowlist of fields (`finding.title`/`summary`/`severity`,
+`manifest.description`/`category`, `finding.evidence.matched_indicator`)
+and never sends `target_origin` or the raw evidence bundle; (2) the
+model's response is required to be strict JSON matching `RemediationPrompt`'s
+schema, and any parse or validation failure discards the response whole and
+falls back to the static template — never partially parsed. Neither stops
+a sufficiently crafted payload that still produces well-formed JSON with
+poisoned field values. Recorded as a known, deliberately-scoped gap, not
+claimed as solved — revisit if it manifests as a real incident.
+
+**What's deliberately out of scope.** §9.2 step 4 of
+`docs/prooflight-vision-and-architecture.md` suggests tokenizing the target
+domain for EU-boundary data-residency reasons. No data-residency
+infrastructure exists yet (`accounts.data_region` is an unused placeholder,
+`docs/data-model.md`), so this phase omits `target_origin` from the prompt
+entirely instead — stronger than tokenizing it, and needs no new
+infrastructure.
+
 ## References
 
-ADR-0001, ADR-0003 (including its Phase 3 addendum), `docs/architecture.md`
-§7 and §15 (numbered as such in
+ADR-0001, ADR-0003 (including its Phase 3 addendum), ADR-0004,
+`docs/architecture.md` §7 and §15 (numbered as such in
 `docs/prooflight-vision-and-architecture.md`), `docs/modules.md` §2, §2a, §2b,
 `docs/data-model.md`.

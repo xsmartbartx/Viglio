@@ -13,10 +13,15 @@ implementation deviates from the entity table in
 `docs/prooflight-vision-and-architecture.md` §6.1.
 
 Phase 3 implemented 8 of that table's ~17 entities — exactly the ones its
-exit criteria needed. Phase 4 adds two more, `Report` and `ShareLink` (see
-below). `MonitorSchedule`, `Alert`, `ApiKey`, `Subscription`,
-`ScoreSnapshot` and a standalone `Evidence` table remain deferred to the
-phases that actually need them (Phase 7 billing, Phase 8 monitoring).
+exit criteria needed. Phase 4 added two more, `Report` and `ShareLink`.
+Phase 5 adds `remediation_cache` — a deliberate addition beyond the domain
+model's own entity table, same pattern as `scans.bundle_id`: the domain
+model doesn't name a remediation cache, but
+`docs/adr/ADR-0004-llm-boundary.md` and the Prooflight doc's own risk
+register ("caching by fingerprint") require one. `MonitorSchedule`, `Alert`,
+`ApiKey`, `Subscription`, `ScoreSnapshot` and a standalone `Evidence` table
+remain deferred to the phases that actually need them (Phase 7 billing,
+Phase 8 monitoring).
 
 ---
 
@@ -178,6 +183,33 @@ report row per scan, found-or-created idempotently by
 
 The plaintext token is returned once, at creation
 (`POST /v1/scans/{id}/share-links`), and never persisted or logged.
+
+## remediation_cache (`packages/orchestrator`, added Phase 5)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID, PK | |
+| `fingerprint` | varchar(128) | `Finding.fingerprint` — `sha256(check_id + "\|" + target_origin)[:16]` (`packages/checks/src/vigilo_checks/findings.py`), stable across repeat scans of the same target for the same check. Column width matches `findings.fingerprint`'s, headroom beyond today's 16 hex chars. |
+| `check_id` | varchar(32), indexed | Queryable, but not part of the uniqueness key — `fingerprint` already encodes it. |
+| `registry_version` | varchar(16) | Part of the composite key (below) — a registry bump can write a fresh cache entry without clobbering an older scan's still-valid row for the prior version's `remediation_template`. |
+| `explanation` | text | |
+| `impact` | text | |
+| `remediation_steps` | JSON (`list[str]`) | |
+| `agent_prompt` | text | The paste-ready fix prompt — `docs/vision.md`'s and the README's headline promise. |
+| `estimated_effort` | varchar(16), nullable | One of `trivial`/`small`/`medium`/`large` — a closed vocabulary, not free text, so the LLM's JSON response either validates cleanly or is discarded whole per `docs/adr/ADR-0004-llm-boundary.md`. |
+| `generated_at` | timestamptz | |
+
+`UniqueConstraint(fingerprint, registry_version)` — composite, not
+`fingerprint` alone. Only rows with `source == "llm"` (a `RemediationPrompt`
+field, not persisted here — every row in this table is, by construction, an
+LLM result) are ever written; `packages/orchestrator/src/vigilo_orchestrator
+/remediation.py`'s `cache_remediation()` no-ops for a template-sourced
+result, since template text is free to recompute and shouldn't freeze a
+finding at template quality once the provider becomes available.
+`generate_remediations_job` (a new ARQ job, auto-enqueued right after scan
+scoring — never inline in `run_scan_job`) is the only writer; report
+rendering (`GET /v1/scans/{id}/report`, `GET /v1/share/{token}`) only ever
+reads, never triggers generation itself.
 
 ## audit_events (`packages/security`)
 
