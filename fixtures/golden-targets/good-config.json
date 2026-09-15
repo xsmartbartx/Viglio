@@ -15,7 +15,13 @@
       "content-type": "text/html; charset=utf-8"
     },
     "cookies": [
-      { "name": "session", "secure": true, "http_only": true, "same_site": "Lax", "max_age": 3600 }
+      {
+        "name": "session",
+        "secure": true,
+        "http_only": true,
+        "same_site": "Lax",
+        "max_age": 3600
+      }
     ],
     "redirect_chain": [],
     "body_excerpt": "<html><body>Good config fixture. <a href=\"/privacy-policy\">Privacy Policy</a> <a href=\"/terms\">Terms</a> <a href=\"/cookie-policy\">Cookie Policy</a> <a href=\"mailto:hello@good.example\">Contact</a> <script src=\"https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js\" integrity=\"sha384-abc123\" crossorigin=\"anonymous\"></script></body></html>",
@@ -57,6 +63,40 @@
     "manifest_present": true
   },
   "backends": {
+    "detected": []
+  },
+  "paths": {
+    "checked": [
+      "/.git/HEAD",
+      "/.git/config",
+      "/.svn/entries",
+      "/.hg/",
+      "/backup.zip",
+      "/backup.sql",
+      "/db.sql",
+      "/site.tar.gz",
+      "/.env.bak",
+      "/.env",
+      "/config.json",
+      "/appsettings.json",
+      "/wp-config.php.bak",
+      "/debug",
+      "/_debug",
+      "/phpinfo.php",
+      "/actuator",
+      "/actuator/health",
+      "/test",
+      "/staging",
+      "/_test",
+      "/api/test",
+      "/uploads/",
+      "/assets/",
+      "/backup/",
+      "/files/",
+      "/wp-admin/",
+      "/admin/",
+      "/administrator/"
+    ],
     "detected": []
   }
 }

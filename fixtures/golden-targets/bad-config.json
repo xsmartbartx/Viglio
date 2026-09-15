@@ -10,8 +10,20 @@
       "x-powered-by": "PHP/7.2.24"
     },
     "cookies": [
-      { "name": "sessionid", "secure": false, "http_only": false, "same_site": null, "max_age": 5184000 },
-      { "name": "tracking", "secure": false, "http_only": true, "same_site": "None", "max_age": null }
+      {
+        "name": "sessionid",
+        "secure": false,
+        "http_only": false,
+        "same_site": null,
+        "max_age": 5184000
+      },
+      {
+        "name": "tracking",
+        "secure": false,
+        "http_only": true,
+        "same_site": "None",
+        "max_age": null
+      }
     ],
     "redirect_chain": [],
     "body_excerpt": "<html><body>Bad config fixture. This site uses cookies for analytics. <a href=\"/page?PHPSESSID=abc123\">click here</a> <input type=\"checkbox\" checked> Subscribe to our newsletter for promo offers. <script src=\"https://www.googletagmanager.com/gtag/js\"></script><script>gtag('config', 'G-XXX');</script> <script src=\"https://code.jquery.com/jquery-1.12.4.min.js\"></script> <script src=\"https://cdn.jsdelivr.net/npm/lodash/lodash.min.js\"></script> <script src=\"https://o1.example.com/a.js\"></script><script src=\"https://o2.example.com/a.js\"></script><script src=\"https://o3.example.com/a.js\"></script><script src=\"https://o4.example.com/a.js\"></script><script src=\"https://o5.example.com/a.js\"></script><script src=\"https://o6.example.com/a.js\"></script><script src=\"https://o7.example.com/a.js\"></script><script src=\"https://o8.example.com/a.js\"></script><script src=\"https://o9.example.com/a.js\"></script> django.core.exceptions.ImproperlyConfigured: settings not configured</body></html>",
@@ -58,7 +70,7 @@
         "provider": "supabase",
         "url": "https://abcdefghijklmnopqrst.supabase.co",
         "key_role": "service_role",
-        "key_fingerprint": "supabase_key:eyJh…(len=210,sha256=deadbeef)",
+        "key_fingerprint": "supabase_key:eyJh\u2026(len=210,sha256=deadbeef)",
         "probe_attempted": false,
         "probe_status_code": null,
         "probe_indicates_open": false,
@@ -68,7 +80,7 @@
         "provider": "supabase",
         "url": "https://zzzzzzzzzzzzzzzzzzzz.supabase.co",
         "key_role": "anon",
-        "key_fingerprint": "supabase_key:eyJh…(len=180,sha256=abad1dea)",
+        "key_fingerprint": "supabase_key:eyJh\u2026(len=180,sha256=abad1dea)",
         "probe_attempted": true,
         "probe_status_code": 200,
         "probe_indicates_open": true,
@@ -93,6 +105,83 @@
         "probe_status_code": 200,
         "probe_indicates_open": true,
         "probe_error": null
+      }
+    ]
+  },
+  "paths": {
+    "checked": [
+      "/.git/HEAD",
+      "/.git/config",
+      "/.svn/entries",
+      "/.hg/",
+      "/backup.zip",
+      "/backup.sql",
+      "/db.sql",
+      "/site.tar.gz",
+      "/.env.bak",
+      "/.env",
+      "/config.json",
+      "/appsettings.json",
+      "/wp-config.php.bak",
+      "/debug",
+      "/_debug",
+      "/phpinfo.php",
+      "/actuator",
+      "/actuator/health",
+      "/test",
+      "/staging",
+      "/_test",
+      "/api/test",
+      "/uploads/",
+      "/assets/",
+      "/backup/",
+      "/files/",
+      "/wp-admin/",
+      "/admin/",
+      "/administrator/"
+    ],
+    "detected": [
+      {
+        "path": "/.git/config",
+        "kind": "repo_metadata",
+        "status_code": 200,
+        "indicator": "HTTP 200 at /.git/config"
+      },
+      {
+        "path": "/backup.sql",
+        "kind": "backup_artefact",
+        "status_code": 200,
+        "indicator": "HTTP 200 at /backup.sql"
+      },
+      {
+        "path": "/.env",
+        "kind": "exposed_config",
+        "status_code": 200,
+        "indicator": "HTTP 200 at /.env"
+      },
+      {
+        "path": "/actuator/health",
+        "kind": "debug_route",
+        "status_code": 200,
+        "indicator": "HTTP 200 at /actuator/health"
+      },
+      {
+        "path": "/staging",
+        "kind": "test_route",
+        "status_code": 200,
+        "indicator": "HTTP 200 at /staging"
+      },
+      {
+        "path": "/uploads/",
+        "kind": "directory_listing",
+        "status_code": 200,
+        "indicator": "autoindex response"
+      },
+      {
+        "path": "/wp-admin/",
+        "kind": "admin_panel",
+        "status_code": 200,
+        "indicator": "HTTP 200 at /wp-admin/"
       }
     ]
   }
