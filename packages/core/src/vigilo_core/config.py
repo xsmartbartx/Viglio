@@ -68,6 +68,8 @@ class Config(BaseModel):
     postmark_server_token: str | None = None
     mail_from_address: str | None = None
     web_app_url: str | None = None
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-haiku-4-5"
 
 
 def _default_brand_config_path() -> Path:
@@ -123,4 +125,6 @@ def config() -> Config:
         postmark_server_token=os.environ.get("POSTMARK_SERVER_TOKEN"),
         mail_from_address=os.environ.get("MAIL_FROM_ADDRESS"),
         web_app_url=os.environ.get("WEB_APP_URL"),
+        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5"),
     )

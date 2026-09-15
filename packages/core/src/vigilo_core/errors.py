@@ -55,6 +55,9 @@ class ErrorCode(StrEnum):
     SHARE_LINK_REVOKED = "SHARE_LINK_REVOKED"
     PDF_RENDER_FAILED = "PDF_RENDER_FAILED"
 
+    # Integrations (Phase 5, docs/modules.md §7)
+    LLM_PROVIDER_ERROR = "LLM_PROVIDER_ERROR"
+
 
 class StructuredError(Exception):
     """A structured, loggable error carrying a stable code and sanitized context.
