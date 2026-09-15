@@ -14,11 +14,11 @@ import time
 import uuid
 from typing import Any
 
-from vigilo_checks import REGISTRY, run_registry
+from vigilo_checks import REGISTRY, plan_registry, run_registry
 from vigilo_core.evidence import EvidenceBundle
 from vigilo_core.logging import LogEvent, log
 from vigilo_core.logging import Severity as LogSeverity
-from vigilo_core.models import Finding, Score, Verdict, VerificationMethod
+from vigilo_core.models import Finding, Score, Tier, Verdict, VerificationMethod
 from vigilo_core.validation import ValidationError
 from vigilo_integrations.errors import MailDeliveryFailed, ObjectStoreError
 from vigilo_integrations.mail import send_transactional_email
@@ -52,8 +52,8 @@ REGISTRY_VERSION = "0.1"
 _MODULE = "vigilo_orchestrator"
 
 
-def _evaluate(bundle: EvidenceBundle) -> tuple[list[Finding], Score]:
-    findings = run_registry(bundle, REGISTRY)
+def _evaluate(bundle: EvidenceBundle, tier: Tier) -> tuple[list[Finding], Score]:
+    findings = run_registry(bundle, plan_registry(REGISTRY, tier))
     manifests_by_id = {check.manifest.check_id: check.manifest for check in REGISTRY}
     result = compute_score(findings, manifests_by_id, REGISTRY_VERSION)
     return findings, result
@@ -94,7 +94,7 @@ async def run_scan_job(ctx: dict[str, Any], scan_job_id: str) -> None:
         await advance(session, job_uuid, "probing")
 
     try:
-        bundle = await run_probes(target.origin)
+        bundle = await run_probes(target.origin, tier=job.tier)
     except (EgressDenied, ValidationError) as exc:
         async with session_scope() as session:
             await advance(session, job_uuid, "unreachable")
@@ -133,7 +133,7 @@ async def run_scan_job(ctx: dict[str, Any], scan_job_id: str) -> None:
         await advance(session, job_uuid, "evaluating")
 
     try:
-        findings, result = _evaluate(bundle)
+        findings, result = _evaluate(bundle, job.tier)
     except Exception:
         async with session_scope() as session:
             await advance(session, job_uuid, "failed")
