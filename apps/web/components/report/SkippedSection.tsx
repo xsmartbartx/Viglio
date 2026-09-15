@@ -13,7 +13,13 @@ function SkippedList({ findings }: { findings: ReportFindingResponse[] }) {
   );
 }
 
-export function SkippedSection({ findings }: { findings: ReportFindingResponse[] }) {
+export function SkippedSection({
+  findings,
+  printMode = false,
+}: {
+  findings: ReportFindingResponse[];
+  printMode?: boolean;
+}) {
   const inconclusive = findings.filter((finding) => finding.verdict === "inconclusive");
   const notApplicable = findings.filter((finding) => finding.verdict === "not_applicable");
 
@@ -24,7 +30,7 @@ export function SkippedSection({ findings }: { findings: ReportFindingResponse[]
   return (
     <div className="mt-8 space-y-6 border-t border-black/10 dark:border-white/10 pt-6">
       {inconclusive.length > 0 ? (
-        <details className="text-sm">
+        <details open={printMode} className="text-sm">
           <summary className="cursor-pointer select-none font-semibold uppercase tracking-wide text-black/50 dark:text-white/50">
             Couldn&apos;t check ({inconclusive.length})
           </summary>
@@ -37,7 +43,7 @@ export function SkippedSection({ findings }: { findings: ReportFindingResponse[]
       ) : null}
 
       {notApplicable.length > 0 ? (
-        <details className="text-sm">
+        <details open={printMode} className="text-sm">
           <summary className="cursor-pointer select-none font-semibold uppercase tracking-wide text-black/50 dark:text-white/50">
             Not applicable ({notApplicable.length})
           </summary>

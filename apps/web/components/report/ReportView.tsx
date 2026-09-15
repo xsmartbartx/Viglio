@@ -28,8 +28,8 @@ export function ReportView({
       ) : null}
 
       <SeverityGroup findings={report.findings} printMode={printMode} />
-      <PassedSection findings={report.findings} />
-      <SkippedSection findings={report.findings} />
+      <PassedSection findings={report.findings} printMode={printMode} />
+      <SkippedSection findings={report.findings} printMode={printMode} />
 
       {showOwnerControls ? (
         <ShareLinkManager scanJobId={report.scan_job_id as string} initialLinks={initialShareLinks} />
