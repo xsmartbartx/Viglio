@@ -13,6 +13,7 @@ from vigilo_core.models import (
     Verdict,
 )
 from vigilo_reporting.builder import build_report
+from vigilo_reporting.models import RemediationPrompt
 
 _GENERATED_AT = datetime(2026, 9, 14, tzinfo=UTC)
 
@@ -76,7 +77,8 @@ def test_build_report_assembles_the_document():
     assert len(report.findings) == 1
     rf = report.findings[0]
     assert rf.category == "HDR"
-    assert rf.remediation == "fix VG-HDR-001"
+    assert rf.remediation.source == "template"
+    assert rf.remediation.remediation_steps == ["fix VG-HDR-001"]
     assert rf.references == ["https://example.com/ref"]
 
 
@@ -129,3 +131,69 @@ def test_build_report_is_idempotent_given_the_same_inputs():
     second = build_report("https://example.com", _score(), findings, manifests, _GENERATED_AT)
 
     assert first == second
+
+
+def _llm_prompt(check_id: str) -> RemediationPrompt:
+    return RemediationPrompt(
+        check_id=check_id,
+        source="llm",
+        explanation="llm explanation",
+        impact="llm impact",
+        remediation_steps=["llm step"],
+        agent_prompt="llm agent prompt",
+        estimated_effort="small",
+    )
+
+
+def test_a_cached_remediation_is_used_verbatim_when_present():
+    findings = [_finding("VG-HDR-001", Verdict.FAILED)]
+    manifests = {"VG-HDR-001": _manifest("VG-HDR-001")}
+    remediations = {"VG-HDR-001": _llm_prompt("VG-HDR-001")}
+
+    report = build_report(
+        "https://example.com", _score(), findings, manifests, _GENERATED_AT, remediations
+    )
+
+    remediation = report.findings[0].remediation
+    assert remediation.source == "llm"
+    assert remediation.remediation_steps == ["llm step"]
+    assert remediation.estimated_effort == "small"
+
+
+def test_a_missing_cache_entry_falls_back_to_the_template_not_a_fresh_llm_call():
+    findings = [_finding("VG-HDR-001", Verdict.FAILED), _finding("VG-HDR-002", Verdict.FAILED)]
+    manifests = {
+        "VG-HDR-001": _manifest("VG-HDR-001"),
+        "VG-HDR-002": _manifest("VG-HDR-002"),
+    }
+    remediations = {"VG-HDR-001": _llm_prompt("VG-HDR-001")}  # VG-HDR-002 has no entry
+
+    report = build_report(
+        "https://example.com", _score(), findings, manifests, _GENERATED_AT, remediations
+    )
+
+    by_check_id = {f.check_id: f for f in report.findings}
+    assert by_check_id["VG-HDR-001"].remediation.source == "llm"
+    assert by_check_id["VG-HDR-002"].remediation.source == "template"
+    assert by_check_id["VG-HDR-002"].remediation.remediation_steps == ["fix VG-HDR-002"]
+
+
+def test_two_renders_with_different_remediation_snapshots_differ_only_in_remediation():
+    findings = [_finding("VG-HDR-001", Verdict.FAILED)]
+    manifests = {"VG-HDR-001": _manifest("VG-HDR-001")}
+
+    before = build_report("https://example.com", _score(), findings, manifests, _GENERATED_AT)
+    after = build_report(
+        "https://example.com",
+        _score(),
+        findings,
+        manifests,
+        _GENERATED_AT,
+        {"VG-HDR-001": _llm_prompt("VG-HDR-001")},
+    )
+
+    assert before.findings[0].remediation.source == "template"
+    assert after.findings[0].remediation.source == "llm"
+    before_dump = before.findings[0].model_dump(exclude={"remediation"})
+    after_dump = after.findings[0].model_dump(exclude={"remediation"})
+    assert before_dump == after_dump

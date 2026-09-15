@@ -9,7 +9,13 @@ handler) fetches `Scan`/`Finding` rows via `vigilo_orchestrator` and builds
 Idempotent by construction: `generated_at` is a required parameter, not
 `datetime.now()` — the same scan rendered twice (once for the web view,
 later for a PDF) must produce byte-identical output, per this module's own
-documented boundary.
+documented boundary. `remediations_by_check_id` (Phase 5) is just another
+already-fetched input to that guarantee, not an exception to it — given the
+same dict, output is identical. The caller may legitimately pass a
+different cache snapshot across two renders of the same scan (template
+placeholder before `generate_remediations_job` finishes, cached Claude text
+after) — expected and self-healing, and it only ever changes remediation
+prose, never score/grade/verdict, per docs/adr/ADR-0004-llm-boundary.md.
 """
 
 from __future__ import annotations
@@ -17,8 +23,14 @@ from __future__ import annotations
 from datetime import datetime
 
 from vigilo_core.models import CheckManifest, Finding, Score
-from vigilo_reporting.models import EvidenceView, ReportDocument, ReportFinding
-from vigilo_reporting.remediation import generate_remediation
+from vigilo_reporting.models import (
+    EvidenceView,
+    RemediationPrompt,
+    RemediationView,
+    ReportDocument,
+    ReportFinding,
+)
+from vigilo_reporting.remediation import template_remediation
 
 _VERDICT_ORDER = {"failed": 0, "passed": 1, "inconclusive": 2, "not_applicable": 3}
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4, "passed": 5}
@@ -33,9 +45,15 @@ def _sort_key(finding: Finding) -> tuple[int, int, str]:
 
 
 def _to_report_finding(
-    finding: Finding, manifest: CheckManifest, generated_at: datetime
+    finding: Finding,
+    manifest: CheckManifest,
+    generated_at: datetime,
+    remediations_by_check_id: dict[str, RemediationPrompt],
 ) -> ReportFinding:
-    remediation = generate_remediation(finding, manifest)
+    prompt = remediations_by_check_id.get(finding.check_id) or template_remediation(
+        finding, manifest
+    )
+    remediation = RemediationView(**prompt.model_dump(exclude={"check_id"}))
 
     evidence = None
     if finding.evidence is not None:
@@ -54,7 +72,7 @@ def _to_report_finding(
         confidence=finding.confidence,
         verdict=finding.verdict,
         summary=finding.summary,
-        remediation=remediation.text,
+        remediation=remediation,
         references=manifest.references,
         evidence=evidence,
         fingerprint=finding.fingerprint,
@@ -67,10 +85,14 @@ def build_report(
     findings: list[Finding],
     manifests_by_check_id: dict[str, CheckManifest],
     generated_at: datetime,
+    remediations_by_check_id: dict[str, RemediationPrompt] | None = None,
 ) -> ReportDocument:
+    remediations = remediations_by_check_id or {}
     ordered = sorted(findings, key=_sort_key)
     report_findings = [
-        _to_report_finding(finding, manifests_by_check_id[finding.check_id], generated_at)
+        _to_report_finding(
+            finding, manifests_by_check_id[finding.check_id], generated_at, remediations
+        )
         for finding in ordered
     ]
     return ReportDocument(

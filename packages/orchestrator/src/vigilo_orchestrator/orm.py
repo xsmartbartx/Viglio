@@ -1,5 +1,6 @@
-"""ScanJobRow / ScanRow / FindingRow / ReportRow / ShareLinkRow
-(docs/prooflight-vision-and-architecture.md §6.1, docs/modules.md §8).
+"""ScanJobRow / ScanRow / FindingRow / ReportRow / ShareLinkRow /
+RemediationCacheRow (docs/prooflight-vision-and-architecture.md §6.1,
+docs/modules.md §8).
 
 `ScanRow.bundle_id` is a deliberate addition beyond the domain-model table —
 the object-storage pointer to the sealed `EvidenceBundle` (`docs/data-model.md`
@@ -108,3 +109,26 @@ class ShareLinkRow(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RemediationCacheRow(Base):
+    """Caches Claude-generated remediation by `(fingerprint, registry_version)`
+    (docs/adr/ADR-0004-llm-boundary.md) — a repeat scan of the same target
+    skips the LLM entirely on a cache hit. Only `source == "llm"` results are
+    ever written here; template fallback text is free to recompute."""
+
+    __tablename__ = "remediation_cache"
+    __table_args__ = (UniqueConstraint("fingerprint", "registry_version"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    fingerprint: Mapped[str] = mapped_column(String(128))
+    check_id: Mapped[str] = mapped_column(String(32), index=True)
+    registry_version: Mapped[str] = mapped_column(String(16))
+    explanation: Mapped[str] = mapped_column(Text)
+    impact: Mapped[str] = mapped_column(Text)
+    remediation_steps: Mapped[list] = mapped_column(JSON)
+    agent_prompt: Mapped[str] = mapped_column(Text)
+    estimated_effort: Mapped[str | None] = mapped_column(String(16), default=None)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

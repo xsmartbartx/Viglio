@@ -23,13 +23,26 @@ from vigilo_core.validation import ValidationError
 from vigilo_integrations.errors import MailDeliveryFailed, ObjectStoreError
 from vigilo_integrations.mail import send_transactional_email
 from vigilo_integrations.storage import put_evidence_bundle, put_report_pdf
-from vigilo_orchestrator.reports import get_report, mark_report_complete, mark_report_failed
-from vigilo_orchestrator.service import advance, get_scan, get_scan_job, record_scan_result
+from vigilo_orchestrator.remediation import cache_remediation, get_remediations_for_findings
+from vigilo_orchestrator.reports import (
+    get_findings_for_scan,
+    get_report,
+    mark_report_complete,
+    mark_report_failed,
+)
+from vigilo_orchestrator.service import (
+    advance,
+    get_scan,
+    get_scan_by_job_id,
+    get_scan_job,
+    record_scan_result,
+)
 from vigilo_persistence import session_scope
 from vigilo_probes import run_probes
 from vigilo_project.repository import get_ownership_proof, get_target, mark_proof_verified
 from vigilo_reporting.errors import PdfRenderError
 from vigilo_reporting.pdf import render_pdf
+from vigilo_reporting.remediation import generate_remediation
 from vigilo_scoring import score as compute_score
 from vigilo_security.audit import AuditEvent, audit
 from vigilo_security.exceptions import EgressDenied
@@ -169,6 +182,15 @@ async def run_scan_job(ctx: dict[str, Any], scan_job_id: str) -> None:
                     context={"scan_job_id": scan_job_id},
                 )
             )
+
+    # Fire-and-forget: remediation prose is generated out of band so scan
+    # completion never depends on LLM latency/availability
+    # (docs/adr/ADR-0004-llm-boundary.md). Guarded on ctx holding a real
+    # redis pool — ARQ populates this at runtime, but unit tests call this
+    # function directly with an empty ctx.
+    redis = ctx.get("redis")
+    if redis is not None:
+        await redis.enqueue_job("generate_remediations_job", scan_job_id)
 
     async with session_scope() as session:
         await advance(session, job_uuid, "complete")
