@@ -185,7 +185,37 @@ finding" promise, built for real this phase rather than implied by generic
 template text.
 
 **Done when:** the LLM provider can be switched off entirely and the product
-still ships a complete report from static remediation templates.
+still ships a complete report from static remediation templates. Verified
+live, not just unit tested: a real scan of `https://example.com` with
+`ANTHROPIC_API_KEY` unset completed normally, `generate_remediations_job`
+ran (confirmed in worker logs) and completed in milliseconds (no network
+call attempted), every one of the 11 failed findings' report JSON showed
+`remediation.source: "template"`, `apps/web`'s report page rendered the new
+structured layout correctly (explanation, impact, ordered steps, and 11
+distinct "Paste into your AI coding tool" blocks, one per failed finding),
+and a direct `render_pdf()` call produced a 6-page PDF with every
+`agent_prompt`'s text present and the interactive Copy button chrome absent
+(`printMode` correctly gates only the button, never the content). `uv run
+pytest -q` (388 tests, 27 new this phase) and `uv run ruff check .` both
+green.
+
+**Known verification gap:** the actual Claude-generated path (a real
+`ANTHROPIC_API_KEY` producing valid structured JSON, `cache_remediation()`
+persisting it, a repeat scan hitting that cache) was not driven live — the
+user was asked and declined to share a real API key for this one test.
+Unit coverage stands in for it instead: `packages/reporting/tests/
+test_remediation.py` exercises `generate_remediation()` against a fake
+`llm_caller` for the valid-response, malformed-JSON, missing-field,
+invalid-`estimated_effort`, and caller-raises cases;
+`packages/integrations/tests/test_llm.py` exercises the actual HTTP
+request/response handling against `httpx.MockTransport` (well-formed
+response, multi-block response, a 4xx rejection, a transport error, an
+empty-content response); `packages/orchestrator/tests/test_remediation.py`
+proves the cache round-trips an LLM result, silently skips a template
+result, and correctly keys on the composite `(fingerprint,
+registry_version)`. A human with a real Anthropic key can complete this
+gap at any time by setting `ANTHROPIC_API_KEY` and re-running the scan
+above — nothing else changes.
 
 ## Phase 6 — Active tier
 

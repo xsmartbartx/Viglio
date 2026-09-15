@@ -230,7 +230,10 @@ Redaction is allowlist-based (an explicit, reviewed field list — never
 response is strictly schema-validated and discarded whole on any failure,
 falling back to the same deterministic template text Phase 4 always
 rendered — verified by actually running a scan with `ANTHROPIC_API_KEY`
-unset and confirming every finding still shows `source: "template"`.
+unset and confirming every finding still shows `source: "template"`. The
+one thing not driven live this phase is the actual Claude-generated path
+itself (no API key was available) — see `docs/build-roadmap.md`'s Phase 5
+entry for exactly what covers that gap instead.
 
 **Phase 4 (Report experience).** `apps/web` is the repo's first
 TypeScript app (Next.js 16 + Clerk) and gives a scan an actual face: a
