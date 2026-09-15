@@ -4,7 +4,7 @@ tests/test_import_boundary.py, not just documented.
 """
 
 from vigilo_checks import cli, cmp, dat, dep, exp, hdr, leg, ses, tls
-from vigilo_checks.findings import run_registry, to_findings
+from vigilo_checks.findings import plan_registry, run_registry, to_findings
 from vigilo_checks.registry import Check, CheckResult, get_header, requires
 
 REGISTRY: list[Check] = [
@@ -25,6 +25,7 @@ __all__ = [
     "get_header",
     "requires",
     "run_registry",
+    "plan_registry",
     "to_findings",
     "REGISTRY",
 ]
