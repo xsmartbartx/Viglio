@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from vigilo_identity.repository import (
     get_account_by_clerk_id,
+    get_account_by_email,
     get_account_by_id,
     get_or_create_account,
 )
@@ -81,3 +82,20 @@ async def test_get_account_by_clerk_id_finds_a_linked_account(db_session: AsyncS
 
     assert found is not None
     assert found.id == created.id
+
+
+async def test_get_account_by_email_finds_an_existing_account(db_session: AsyncSession) -> None:
+    created = await get_or_create_account(db_session, email="byemail@example.com")
+
+    found = await get_account_by_email(db_session, "byemail@example.com")
+
+    assert found is not None
+    assert found.id == created.id
+
+
+async def test_get_account_by_email_returns_none_and_creates_nothing_for_an_unknown_email(
+    db_session: AsyncSession,
+) -> None:
+    assert await get_account_by_email(db_session, "never-signed-up@example.com") is None
+    # confirm no account was silently created by the lookup itself
+    assert await get_account_by_email(db_session, "never-signed-up@example.com") is None

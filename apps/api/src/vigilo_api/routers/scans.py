@@ -15,9 +15,15 @@ from vigilo_api.deps import QueueDep, SessionDep
 from vigilo_api.schemas import ScanStatusResponse, ScanSubmission, ScanSubmissionResponse
 from vigilo_core.models import Tier
 from vigilo_core.validation import ValidationError, validate_target_url
-from vigilo_identity.repository import get_or_create_account
+from vigilo_identity.repository import get_account_by_email, get_or_create_account
 from vigilo_orchestrator.service import advance, create_scan_job, get_scan_by_job_id, get_scan_job
-from vigilo_project.repository import create_target, get_or_create_default_project, get_target
+from vigilo_project.repository import (
+    create_target,
+    get_or_create_default_project,
+    get_target,
+    get_target_by_origin,
+    has_valid_ownership_proof,
+)
 from vigilo_security.audit import AuditEvent, audit
 from vigilo_security.authorization import AuthorizationRequest, resolve_authorization
 
@@ -38,13 +44,33 @@ async def submit_scan(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.message) from exc
 
+    # A *returning* submitter (an account already exists for this email) may
+    # already have a verified target for this exact origin from a prior,
+    # authenticated ownership-verification flow — look it up so a rescan can
+    # actually be granted active tier. A brand-new submitter takes exactly
+    # the same no-lookup path as before: nothing is read or created here,
+    # preserving "a denied scan may have no account yet"
+    # (docs/data-model.md's audit_events.account_id note) for first-timers,
+    # the only case that invariant is actually about. `target_opt_out` and
+    # `recent_scan_count_24h` remain separately-tracked, pre-existing scope
+    # trims (docs/security.md §2) — not touched here.
+    target_verification_status = Tier.PASSIVE
+    ownership_proof_valid = False
+    existing_account = await get_account_by_email(session, body.email)
+    if existing_account is not None:
+        existing_project = await get_or_create_default_project(session, existing_account.id)
+        existing_target = await get_target_by_origin(session, existing_project.id, origin)
+        if existing_target is not None:
+            target_verification_status = existing_target.verification_status
+            ownership_proof_valid = await has_valid_ownership_proof(session, existing_target.id)
+
     decision = resolve_authorization(
         AuthorizationRequest(
             target_origin=origin,
             requested_tier=body.requested_tier,
-            target_verification_status=Tier.PASSIVE,
+            target_verification_status=target_verification_status,
             target_opt_out=False,
-            ownership_proof_valid=False,
+            ownership_proof_valid=ownership_proof_valid,
             recent_scan_count_24h=0,
             denylisted=origin in _DENYLIST,
         )

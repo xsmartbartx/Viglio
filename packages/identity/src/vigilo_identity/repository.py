@@ -26,6 +26,18 @@ async def get_account_by_clerk_id(session: AsyncSession, clerk_user_id: str) -> 
     return Account.model_validate(row) if row else None
 
 
+async def get_account_by_email(session: AsyncSession, email: str) -> Account | None:
+    """Read-only — never creates. Used where a caller needs to know whether
+    a *returning* submitter already exists without the side effect of
+    `get_or_create_account`, e.g. `POST /v1/scans` looking up a returning
+    submitter's real verification state before deciding whether a denied
+    request should be allowed to leave no account/target row behind."""
+    stmt = select(AccountRow).where(AccountRow.email == email)
+    result = await session.execute(stmt)
+    row = result.scalar_one_or_none()
+    return Account.model_validate(row) if row else None
+
+
 async def get_or_create_account(
     session: AsyncSession, email: str, clerk_user_id: str | None = None
 ) -> Account:

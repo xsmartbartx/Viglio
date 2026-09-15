@@ -9,6 +9,7 @@ from __future__ import annotations
 from vigilo_identity.models import Account
 from vigilo_identity.repository import (
     get_account_by_clerk_id,
+    get_account_by_email,
     get_account_by_id,
     get_or_create_account,
 )
@@ -17,5 +18,6 @@ __all__ = [
     "Account",
     "get_account_by_id",
     "get_account_by_clerk_id",
+    "get_account_by_email",
     "get_or_create_account",
 ]
