@@ -63,7 +63,7 @@ async def test_run_scan_job_completes_and_persists_a_scan(db_schema, monkeypatch
     job, _target = await _make_authorized_job()
     sent = {}
 
-    async def fake_run_probes(url):
+    async def fake_run_probes(url, tier=None, **kwargs):
         return _load_bundle("good-config.json")
 
     async def fake_send_email(to, subject, html_body, **kwargs):
@@ -88,7 +88,7 @@ async def test_run_scan_job_completes_and_persists_a_scan(db_schema, monkeypatch
 async def test_run_scan_job_marks_unreachable_when_egress_is_denied(db_schema, monkeypatch):
     job, _target = await _make_authorized_job()
 
-    async def fake_run_probes(url):
+    async def fake_run_probes(url, tier=None, **kwargs):
         raise EgressDenied("simulated deny", host="example.com")
 
     monkeypatch.setattr(jobs, "run_probes", fake_run_probes)
@@ -103,7 +103,7 @@ async def test_run_scan_job_marks_unreachable_when_egress_is_denied(db_schema, m
 async def test_run_scan_job_completes_even_when_email_delivery_fails(db_schema, monkeypatch):
     job, _target = await _make_authorized_job()
 
-    async def fake_run_probes(url):
+    async def fake_run_probes(url, tier=None, **kwargs):
         return _load_bundle("good-config.json")
 
     async def failing_send(*args, **kwargs):
@@ -132,7 +132,7 @@ async def test_run_scan_job_enqueues_remediation_generation_when_ctx_has_redis(
 ):
     job, _target = await _make_authorized_job()
 
-    async def fake_run_probes(url):
+    async def fake_run_probes(url, tier=None, **kwargs):
         return _load_bundle("good-config.json")
 
     async def fake_send_email(to, subject, html_body, **kwargs):

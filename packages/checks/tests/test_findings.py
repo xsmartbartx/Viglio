@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
 
-from vigilo_checks import REGISTRY, run_registry
+from vigilo_checks import REGISTRY, plan_registry, run_registry
 from vigilo_checks.registry import CheckResult
 from vigilo_core.evidence import EvidenceBundle, HttpObservation
-from vigilo_core.models import Verdict
+from vigilo_core.models import Tier, Verdict
 
 
 def _bundle(headers: dict[str, str] | None = None) -> EvidenceBundle:
@@ -67,3 +67,30 @@ def test_finding_without_matched_indicator_has_no_evidence():
     finding = next(f for f in findings if f.check_id == "VG-HDR-011")
     assert finding.verdict == Verdict.PASSED
     assert finding.evidence is None
+
+
+def test_plan_registry_at_passive_tier_excludes_every_active_check():
+    planned = plan_registry(REGISTRY, Tier.PASSIVE)
+    assert all(check.manifest.tier_required == Tier.PASSIVE for check in planned)
+
+
+def test_plan_registry_at_active_tier_includes_everything():
+    planned = plan_registry(REGISTRY, Tier.ACTIVE)
+    assert len(planned) == len(REGISTRY)
+
+
+def test_plan_registry_preserves_every_passive_check_at_passive_tier():
+    passive_ids = {c.manifest.check_id for c in REGISTRY if c.manifest.tier_required == Tier.PASSIVE}
+    planned_ids = {c.manifest.check_id for c in plan_registry(REGISTRY, Tier.PASSIVE)}
+    assert planned_ids == passive_ids
+
+
+def test_registrys_total_budget_cost_is_within_the_suggested_ceilings():
+    # docs/prooflight-vision-and-architecture.md §8.5: "suggested: 60
+    # passive, 220 active." Static, provable-by-construction check — not a
+    # runtime enforcement engine, since nothing in the current registry
+    # approaches these ceilings (see docs/modules.md §4's budget_cost note).
+    passive_cost = sum(c.manifest.budget_cost for c in plan_registry(REGISTRY, Tier.PASSIVE))
+    active_cost = sum(c.manifest.budget_cost for c in plan_registry(REGISTRY, Tier.ACTIVE))
+    assert passive_cost <= 60
+    assert active_cost <= 220
