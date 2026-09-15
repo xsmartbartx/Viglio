@@ -1,20 +1,24 @@
-"""EXP category (surface exposure): 5 checks — the passive subset.
+"""EXP category (surface exposure): 12 checks — `VG-EXP-001` through `005`
+passive (Phase 2), `VG-EXP-006` through `012` active-tier (Phase 6).
 
-The full v0.1 category (12 checks) includes "browsable directories, backup
-artefacts, debug and test routes, reachable configuration and repository
-metadata paths" — per docs/modules.md §3, that's the `paths` probe, which is
-explicitly **Tier 1 (active) only**, since it means guessing at paths a
-normal visitor would never request. Shipping those checks now, before
-Phase 3's `resolve_authorization`/`verify_ownership` exist, would mean an
-unauthenticated `vigilo scan` blindly probing hidden paths on a target
-nobody has verified ownership of — a direct violation of ADR-0003.
+`VG-EXP-001..005`: presence of the four conventional `.well-known`-adjacent
+files (explicitly in-scope per docs/vision.md's "GET on public .well-known
+paths"), plus verbose error/debug-page detection on the homepage response
+that's already been fetched — genuinely passive, no hidden-path guessing.
 
-What's genuinely passive and shipped here: presence of the four
-conventional `.well-known`-adjacent files (explicitly in-scope per
-docs/vision.md's "GET on public .well-known paths"), plus verbose
-error/debug-page detection on the homepage response that's already been
-fetched. The remaining 7 checks move to Phase 6 — see
-docs/build-roadmap.md.
+`VG-EXP-006..012`: "browsable directories, backup artefacts, debug and test
+routes, reachable configuration and repository metadata paths" — per
+docs/modules.md §3, that's the `paths` probe
+(`packages/probes/src/vigilo_probes/paths_probe.py`), explicitly **Tier 1
+(active) only**, since it means guessing at paths a normal visitor would
+never request. Deferred from Phase 2 to Phase 6, once
+`resolve_authorization()`/`verify_ownership()` existed to gate it — shipping
+these against an unverified target would be blind hidden-path enumeration,
+a direct violation of ADR-0003's passive-tier definition. All seven read
+`bundle.paths`, populated only at `Tier.ACTIVE`
+(`packages/probes/src/vigilo_probes/orchestrator.py`); each aggregates
+every matching `DetectedPath` into one result, same multi-offender pattern
+`dat.py`'s checks already use for `bundle.backends`.
 """
 
 from __future__ import annotations
@@ -22,7 +26,7 @@ from __future__ import annotations
 import re
 
 from vigilo_checks.registry import Check, CheckResult, requires
-from vigilo_core.evidence import EvidenceBundle
+from vigilo_core.evidence import DetectedPath, EvidenceBundle
 from vigilo_core.models import CheckManifest, Confidence, Severity, Tier, Verdict
 
 _VERBOSE_ERROR_PATTERN = re.compile(
@@ -178,10 +182,241 @@ CHECK_NO_VERBOSE_ERROR_PAGE = Check(
 )
 
 
+# --- VG-EXP-006: repository metadata not exposed (Tier 1) --------------------
+
+
+def _offenders(bundle: EvidenceBundle, kind: str) -> list[DetectedPath]:
+    return [p for p in bundle.paths.detected if p.kind == kind]
+
+
+@requires("paths")
+def _no_repo_metadata_exposed(bundle: EvidenceBundle) -> CheckResult:
+    offenders = _offenders(bundle, "repo_metadata")
+    if offenders:
+        paths = ", ".join(o.path for o in offenders)
+        return CheckResult(Verdict.FAILED, f"repository metadata is reachable: {paths}", paths)
+    return CheckResult(Verdict.PASSED, "no repository metadata (.git/.svn/.hg) reachable")
+
+
+CHECK_NO_REPO_METADATA_EXPOSED = Check(
+    manifest=CheckManifest(
+        check_id="VG-EXP-006",
+        category="EXP",
+        title="Repository metadata not exposed",
+        description="A reachable .git/.svn/.hg directory can let an attacker reconstruct the full source tree, including commit history and anything ever committed, secrets included.",
+        severity_default=Severity.CRITICAL,
+        confidence=Confidence.CONFIRMED,
+        weight=9,
+        tier_required=Tier.ACTIVE,
+        budget_cost=4,
+        references=["https://cwe.mitre.org/data/definitions/527.html"],
+        remediation_template="Block access to .git/.svn/.hg directories at the web server or CDN level; never deploy version-control metadata into the public web root.",
+        introduced_in="0.1",
+    ),
+    evaluate=_no_repo_metadata_exposed,
+)
+
+
+# --- VG-EXP-007: no backup/archive files reachable (Tier 1) -------------------
+
+
+@requires("paths")
+def _no_backup_artefacts_exposed(bundle: EvidenceBundle) -> CheckResult:
+    offenders = _offenders(bundle, "backup_artefact")
+    if offenders:
+        paths = ", ".join(o.path for o in offenders)
+        return CheckResult(Verdict.FAILED, f"a backup or archive file is reachable: {paths}", paths)
+    return CheckResult(Verdict.PASSED, "no backup or archive file reachable")
+
+
+CHECK_NO_BACKUP_ARTEFACTS_EXPOSED = Check(
+    manifest=CheckManifest(
+        check_id="VG-EXP-007",
+        category="EXP",
+        title="No backup or archive files reachable",
+        description="A reachable database dump or site archive can hand over real user data and source code in one download.",
+        severity_default=Severity.CRITICAL,
+        confidence=Confidence.CONFIRMED,
+        weight=9,
+        tier_required=Tier.ACTIVE,
+        budget_cost=5,
+        references=["https://cwe.mitre.org/data/definitions/530.html"],
+        remediation_template="Remove backup/archive files from the public web root; store backups outside any web-served directory.",
+        introduced_in="0.1",
+    ),
+    evaluate=_no_backup_artefacts_exposed,
+)
+
+
+# --- VG-EXP-008: no exposed configuration files (Tier 1) ----------------------
+
+
+@requires("paths")
+def _no_exposed_config_files(bundle: EvidenceBundle) -> CheckResult:
+    offenders = _offenders(bundle, "exposed_config")
+    if offenders:
+        paths = ", ".join(o.path for o in offenders)
+        return CheckResult(Verdict.FAILED, f"a configuration file is reachable: {paths}", paths)
+    return CheckResult(Verdict.PASSED, "no configuration file reachable")
+
+
+CHECK_NO_EXPOSED_CONFIG_FILES = Check(
+    manifest=CheckManifest(
+        check_id="VG-EXP-008",
+        category="EXP",
+        title="No exposed configuration files",
+        description="A reachable .env or app-config file routinely contains database credentials, API keys, and signing secrets in plain text.",
+        severity_default=Severity.CRITICAL,
+        confidence=Confidence.CONFIRMED,
+        weight=9,
+        tier_required=Tier.ACTIVE,
+        budget_cost=4,
+        references=["https://cwe.mitre.org/data/definitions/538.html"],
+        remediation_template="Remove configuration files from the public web root; load secrets from environment variables or a secret manager instead.",
+        introduced_in="0.1",
+    ),
+    evaluate=_no_exposed_config_files,
+)
+
+
+# --- VG-EXP-009: no debug routes reachable (Tier 1) ---------------------------
+
+
+@requires("paths")
+def _no_debug_routes_exposed(bundle: EvidenceBundle) -> CheckResult:
+    offenders = _offenders(bundle, "debug_route")
+    if offenders:
+        paths = ", ".join(o.path for o in offenders)
+        return CheckResult(Verdict.FAILED, f"a debug route is reachable: {paths}", paths)
+    return CheckResult(Verdict.PASSED, "no debug route reachable")
+
+
+CHECK_NO_DEBUG_ROUTES_EXPOSED = Check(
+    manifest=CheckManifest(
+        check_id="VG-EXP-009",
+        category="EXP",
+        title="No debug routes reachable",
+        description="A reachable debug endpoint (framework debug console, phpinfo, an actuator health/env page) discloses internal versions, paths and sometimes configuration to any visitor.",
+        severity_default=Severity.MEDIUM,
+        confidence=Confidence.CONFIRMED,
+        weight=5,
+        tier_required=Tier.ACTIVE,
+        budget_cost=5,
+        references=["https://cwe.mitre.org/data/definitions/215.html"],
+        remediation_template="Disable debug/diagnostic endpoints in production, or require authentication in front of them.",
+        introduced_in="0.1",
+    ),
+    evaluate=_no_debug_routes_exposed,
+)
+
+
+# --- VG-EXP-010: no test/staging routes reachable (Tier 1) --------------------
+
+
+@requires("paths")
+def _no_test_routes_exposed(bundle: EvidenceBundle) -> CheckResult:
+    offenders = _offenders(bundle, "test_route")
+    if offenders:
+        paths = ", ".join(o.path for o in offenders)
+        return CheckResult(Verdict.FAILED, f"a test/staging route is reachable: {paths}", paths)
+    return CheckResult(Verdict.PASSED, "no test/staging route reachable")
+
+
+CHECK_NO_TEST_ROUTES_EXPOSED = Check(
+    manifest=CheckManifest(
+        check_id="VG-EXP-010",
+        category="EXP",
+        title="No test/staging routes reachable",
+        description="Test or staging routes left in a production deployment are rarely hardened to the same standard as the rest of the app and widen the attack surface unnecessarily.",
+        severity_default=Severity.LOW,
+        confidence=Confidence.INDICATED,
+        weight=3,
+        tier_required=Tier.ACTIVE,
+        budget_cost=4,
+        references=["https://cwe.mitre.org/data/definitions/489.html"],
+        remediation_template="Remove test/staging routes from the production build, or gate them behind authentication.",
+        false_positive_notes="A reachable /test or /staging path is not always a real issue on its own — treat as a prompt to confirm it doesn't bypass normal authorization.",
+        introduced_in="0.1",
+    ),
+    evaluate=_no_test_routes_exposed,
+)
+
+
+# --- VG-EXP-011: no directory listing enabled (Tier 1) ------------------------
+
+
+@requires("paths")
+def _no_directory_listing_enabled(bundle: EvidenceBundle) -> CheckResult:
+    offenders = _offenders(bundle, "directory_listing")
+    if offenders:
+        paths = ", ".join(o.path for o in offenders)
+        return CheckResult(Verdict.FAILED, f"directory listing is enabled: {paths}", paths)
+    return CheckResult(Verdict.PASSED, "no directory listing detected on checked paths")
+
+
+CHECK_NO_DIRECTORY_LISTING_ENABLED = Check(
+    manifest=CheckManifest(
+        check_id="VG-EXP-011",
+        category="EXP",
+        title="No directory listing enabled",
+        description="An auto-generated directory index reveals the full file inventory of a folder, including files never linked from the site itself.",
+        severity_default=Severity.MEDIUM,
+        confidence=Confidence.INDICATED,
+        weight=5,
+        tier_required=Tier.ACTIVE,
+        budget_cost=4,
+        references=["https://cwe.mitre.org/data/definitions/548.html"],
+        remediation_template="Disable directory listing (autoindex) on the web server for every publicly reachable directory.",
+        false_positive_notes="Detection matches common autoindex title/heading patterns (Apache/nginx); a custom directory-browsing UI could evade or false-positive this heuristic.",
+        introduced_in="0.1",
+    ),
+    evaluate=_no_directory_listing_enabled,
+)
+
+
+# --- VG-EXP-012: no default admin panel paths exposed (Tier 1) ----------------
+
+
+@requires("paths")
+def _no_default_admin_panel_exposed(bundle: EvidenceBundle) -> CheckResult:
+    offenders = _offenders(bundle, "admin_panel")
+    if offenders:
+        paths = ", ".join(o.path for o in offenders)
+        return CheckResult(Verdict.FAILED, f"a default admin panel path is reachable: {paths}", paths)
+    return CheckResult(Verdict.PASSED, "no default admin panel path reachable")
+
+
+CHECK_NO_DEFAULT_ADMIN_PANEL_EXPOSED = Check(
+    manifest=CheckManifest(
+        check_id="VG-EXP-012",
+        category="EXP",
+        title="No default admin panel paths exposed",
+        description="A reachable default admin path (e.g. a CMS's stock /wp-admin/) is the first thing an automated attacker tries, and widens the attack surface even when properly authenticated.",
+        severity_default=Severity.LOW,
+        confidence=Confidence.INDICATED,
+        weight=2,
+        tier_required=Tier.ACTIVE,
+        budget_cost=3,
+        references=["https://owasp.org/Top10/A05_2021-Security_Misconfiguration/"],
+        remediation_template="Move the admin panel off its default path, restrict it by IP allowlist, or require a second factor in front of it.",
+        false_positive_notes="Reachability alone is not proof of weak access control — a properly authenticated admin panel at a default path is lower risk than this check's severity implies on its own; treat as a hardening prompt, not confirmed compromise.",
+        introduced_in="0.1",
+    ),
+    evaluate=_no_default_admin_panel_exposed,
+)
+
+
 CHECKS: list[Check] = [
     CHECK_SECURITY_TXT_PRESENT,
     CHECK_ROBOTS_TXT_PRESENT,
     CHECK_SITEMAP_PRESENT,
     CHECK_MANIFEST_PRESENT,
     CHECK_NO_VERBOSE_ERROR_PAGE,
+    CHECK_NO_REPO_METADATA_EXPOSED,
+    CHECK_NO_BACKUP_ARTEFACTS_EXPOSED,
+    CHECK_NO_EXPOSED_CONFIG_FILES,
+    CHECK_NO_DEBUG_ROUTES_EXPOSED,
+    CHECK_NO_TEST_ROUTES_EXPOSED,
+    CHECK_NO_DIRECTORY_LISTING_ENABLED,
+    CHECK_NO_DEFAULT_ADMIN_PANEL_EXPOSED,
 ]
