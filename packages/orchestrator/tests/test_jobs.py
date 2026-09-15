@@ -16,6 +16,7 @@ from vigilo_core.models import (
 )
 from vigilo_identity.repository import get_or_create_account
 from vigilo_integrations.errors import MailDeliveryFailed
+from vigilo_orchestrator.remediation import get_remediations_for_findings
 from vigilo_orchestrator.reports import get_or_create_pdf_report, get_report
 from vigilo_orchestrator.service import (
     advance,
@@ -116,6 +117,34 @@ async def test_run_scan_job_completes_even_when_email_delivery_fails(db_schema, 
     async with session_scope() as session:
         final = await get_scan_job(session, job.id)
     assert final is not None and final.status == "complete"
+
+
+class _FakeRedis:
+    def __init__(self) -> None:
+        self.enqueued: list[tuple[str, tuple]] = []
+
+    async def enqueue_job(self, function: str, *args) -> None:
+        self.enqueued.append((function, args))
+
+
+async def test_run_scan_job_enqueues_remediation_generation_when_ctx_has_redis(
+    db_schema, monkeypatch
+):
+    job, _target = await _make_authorized_job()
+
+    async def fake_run_probes(url):
+        return _load_bundle("good-config.json")
+
+    async def fake_send_email(to, subject, html_body, **kwargs):
+        return None
+
+    monkeypatch.setattr(jobs, "run_probes", fake_run_probes)
+    monkeypatch.setattr(jobs, "send_transactional_email", fake_send_email)
+
+    redis = _FakeRedis()
+    await jobs.run_scan_job({"redis": redis}, str(job.id))
+
+    assert redis.enqueued == [("generate_remediations_job", (str(job.id),))]
 
 
 async def test_run_scan_job_is_a_noop_for_a_job_not_yet_authorized(db_schema):
@@ -268,3 +297,84 @@ async def test_render_report_pdf_job_is_a_noop_for_a_non_pending_report(db_schem
 
     monkeypatch.setattr(jobs, "render_pdf", should_not_be_called)
     await jobs.render_report_pdf_job({}, str(report.id))  # should return early, no error
+
+
+async def test_generate_remediations_job_caches_llm_results_for_failed_findings(
+    db_schema, monkeypatch
+):
+    scan = await _make_completed_scan()
+
+    async def fake_generate_remediation(finding, manifest, **kwargs):
+        from vigilo_reporting.models import RemediationPrompt
+
+        return RemediationPrompt(
+            check_id=finding.check_id,
+            source="llm",
+            explanation="e",
+            impact="i",
+            remediation_steps=["s"],
+            agent_prompt="a",
+            estimated_effort="small",
+        )
+
+    monkeypatch.setattr(jobs, "generate_remediation", fake_generate_remediation)
+
+    await jobs.generate_remediations_job({}, str(scan.job_id))
+
+    async with session_scope() as session:
+        findings = await jobs.get_findings_for_scan(session, scan.id)
+        cached = await get_remediations_for_findings(session, findings, scan.registry_version)
+
+    assert cached["VG-HDR-001"].source == "llm"
+
+
+async def test_generate_remediations_job_skips_findings_already_cached(db_schema, monkeypatch):
+    scan = await _make_completed_scan()
+
+    async def should_not_be_called(finding, manifest, **kwargs):
+        raise AssertionError("generate_remediation should not have been called")
+
+    async with session_scope() as session:
+        from vigilo_orchestrator.remediation import cache_remediation
+        from vigilo_reporting.models import RemediationPrompt
+
+        await cache_remediation(
+            session,
+            "fp1",
+            "VG-HDR-001",
+            scan.registry_version,
+            RemediationPrompt(
+                check_id="VG-HDR-001",
+                source="llm",
+                explanation="already cached",
+                impact="i",
+                remediation_steps=["s"],
+                agent_prompt="a",
+                estimated_effort="small",
+            ),
+        )
+
+    monkeypatch.setattr(jobs, "generate_remediation", should_not_be_called)
+
+    await jobs.generate_remediations_job({}, str(scan.job_id))  # should not raise
+
+
+async def test_generate_remediations_job_is_a_noop_with_no_failed_findings(db_schema, monkeypatch):
+    job, _target = await _make_authorized_job("owner5@example.com")
+    async with session_scope() as session:
+        job = await advance(session, job.id, "probing")
+        job = await advance(session, job.id, "evaluating")
+        job = await advance(session, job.id, "scoring")
+        score = Score(value=100.0, grade="A", registry_version="0.1", counts_by_severity={})
+        scan = await record_scan_result(session, job, [], score, duration_ms=10)
+
+    async def should_not_be_called(finding, manifest, **kwargs):
+        raise AssertionError("generate_remediation should not have been called")
+
+    monkeypatch.setattr(jobs, "generate_remediation", should_not_be_called)
+
+    await jobs.generate_remediations_job({}, str(scan.job_id))  # should not raise
+
+
+async def test_generate_remediations_job_is_a_noop_for_an_unknown_scan_job_id(db_schema):
+    await jobs.generate_remediations_job({}, "00000000-0000-0000-0000-000000000000")  # no raise

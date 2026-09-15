@@ -54,7 +54,9 @@ async def test_cache_remediation_is_a_noop_for_a_template_result(db_session: Asy
         estimated_effort=None,
     )
 
-    await cache_remediation(db_session, finding.fingerprint, finding.check_id, "0.1", template_prompt)
+    await cache_remediation(
+        db_session, finding.fingerprint, finding.check_id, "0.1", template_prompt
+    )
 
     cached = await get_remediations_for_findings(db_session, [finding], "0.1")
     assert cached == {}

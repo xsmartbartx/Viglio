@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr
 
@@ -73,6 +74,15 @@ class EvidenceResponse(BaseModel):
     captured_at: datetime
 
 
+class RemediationResponse(BaseModel):
+    source: Literal["template", "llm"]
+    explanation: str
+    impact: str
+    remediation_steps: list[str]
+    agent_prompt: str
+    estimated_effort: Literal["trivial", "small", "medium", "large"] | None
+
+
 class ReportFindingResponse(BaseModel):
     check_id: str
     category: str
@@ -81,7 +91,7 @@ class ReportFindingResponse(BaseModel):
     confidence: Confidence
     verdict: Verdict
     summary: str
-    remediation: str
+    remediation: RemediationResponse
     references: list[str]
     evidence: EvidenceResponse | None
     fingerprint: str
