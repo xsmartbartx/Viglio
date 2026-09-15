@@ -265,14 +265,23 @@ Registry: 57 → 64 checks.
 
 **Done when:** it is proven by test — not just by code review — that no
 active-tier check is reachable against an unverified target under any code
-path. Verified live: a new-origin scan still grants passive tier and the
-worker log shows zero `paths`-probe requests; completing the existing
-Phase 3 DNS-TXT ownership-verification flow for a target, then resubmitting
-`POST /v1/scans` for that same origin/email with `requested_tier: active`,
-grants `granted_tier: "active"` for the first time anywhere in the product,
-and the resulting report shows real `VG-EXP-006`..`012` findings.
-`uv run pytest -q` (413 tests) and `uv run ruff check .` both green,
-including the new `tier-gating-suite` CI job.
+path. Verified live against a real scan of `https://example.com`: a
+new-origin submission still grants `passive` and its report carries exactly
+57 findings, none of `VG-EXP-006`..`012`. A target with a real, verified
+DNS-TXT ownership proof (seeded via `vigilo_project.repository`'s existing,
+already-tested functions — `create_target`/`issue_ownership_proof`/
+`mark_proof_verified` — rather than driving Clerk's hosted sign-in UI,
+which hits a Cloudflare bot-check this project won't attempt to solve, the
+same limitation noted in Phases 4/5) resubmitted through the real
+`POST /v1/scans` HTTP endpoint with `requested_tier: active` was granted
+`granted_tier: "active"` — for the first time anywhere in the product — and
+its report carries all 64 findings, `VG-EXP-006`..`012` included (all
+`passed`, correctly, against a clean target). The active-tier job also took
+visibly longer end to end (3.58s vs. 1.38s for the passive job, in worker
+logs) — consistent with the `paths` probe's ~29 additional bounded requests
+actually firing only in the active case. `uv run pytest -q` (413 tests) and
+`uv run ruff check .` both green, including the new `tier-gating-suite`
+CI job.
 
 ## Phase 7 — Monetisation
 
