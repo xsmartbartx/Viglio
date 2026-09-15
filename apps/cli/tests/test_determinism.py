@@ -9,7 +9,7 @@ from pathlib import Path
 
 from vigilo_cli.pipeline import evaluate
 from vigilo_core.evidence import EvidenceBundle
-from vigilo_core.models import Verdict
+from vigilo_core.models import Tier, Verdict
 
 _FIXTURES_DIR = Path(__file__).resolve().parents[3] / "fixtures" / "golden-targets"
 
@@ -70,3 +70,26 @@ def test_bad_config_demonstrates_the_flagship_dat_check_end_to_end():
     dat_001 = next(f for f in findings if f.check_id == "VG-DAT-001")
     assert dat_001.verdict == Verdict.FAILED
     assert dat_001.severity.value == "critical"
+
+
+def test_active_tier_checks_are_absent_at_the_default_passive_tier():
+    active_exp_ids = {f"VG-EXP-{n:03d}" for n in range(6, 13)}
+    findings, _score = evaluate(_load("bad-config.json"))
+    assert not any(f.check_id in active_exp_ids for f in findings)
+
+
+def test_active_tier_golden_fixture_spread_exercises_the_new_exp_checks():
+    """Phase 6: the same good/bad spread Phase 2 established, now covering
+    the 7 active-tier EXP checks too — bad-config.json's `paths.detected`
+    hits every one of the 7 kinds."""
+    good_findings, good_score = evaluate(_load("good-config.json"), tier=Tier.ACTIVE)
+    bad_findings, bad_score = evaluate(_load("bad-config.json"), tier=Tier.ACTIVE)
+
+    active_exp_ids = {f"VG-EXP-{n:03d}" for n in range(6, 13)}
+    good_active = {f.check_id: f.verdict for f in good_findings if f.check_id in active_exp_ids}
+    bad_active = {f.check_id: f.verdict for f in bad_findings if f.check_id in active_exp_ids}
+
+    assert set(good_active) == active_exp_ids
+    assert all(v == Verdict.PASSED for v in good_active.values())
+    assert all(v == Verdict.FAILED for v in bad_active.values())
+    assert bad_score.value < good_score.value

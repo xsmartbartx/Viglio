@@ -80,7 +80,9 @@ def test_plan_registry_at_active_tier_includes_everything():
 
 
 def test_plan_registry_preserves_every_passive_check_at_passive_tier():
-    passive_ids = {c.manifest.check_id for c in REGISTRY if c.manifest.tier_required == Tier.PASSIVE}
+    passive_ids = {
+        c.manifest.check_id for c in REGISTRY if c.manifest.tier_required == Tier.PASSIVE
+    }
     planned_ids = {c.manifest.check_id for c in plan_registry(REGISTRY, Tier.PASSIVE)}
     assert planned_ids == passive_ids
 
