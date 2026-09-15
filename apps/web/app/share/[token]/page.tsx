@@ -6,18 +6,9 @@ import { brand } from "../../../lib/brand";
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
+  let report;
   try {
-    const report = await api.getShareReport(token);
-    return (
-      <>
-        <header className="flex items-center px-6 py-4 border-b border-black/10 dark:border-white/10">
-          <Link href="/" className="font-semibold">
-            {brand.name}
-          </Link>
-        </header>
-        <ReportView report={report} />
-      </>
-    );
+    report = await api.getShareReport(token);
   } catch (err) {
     if (err instanceof ApiError && (err.status === 404 || err.status === 410)) {
       return (
@@ -33,4 +24,15 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
     }
     throw err;
   }
+
+  return (
+    <>
+      <header className="flex items-center px-6 py-4 border-b border-black/10 dark:border-white/10">
+        <Link href="/" className="font-semibold">
+          {brand.name}
+        </Link>
+      </header>
+      <ReportView report={report} />
+    </>
+  );
 }

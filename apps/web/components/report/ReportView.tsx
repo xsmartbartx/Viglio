@@ -1,4 +1,4 @@
-import type { ScanReportResponse } from "../../lib/types";
+import type { ScanReportResponse, ShareLinkResponse } from "../../lib/types";
 import { ScoreHeader } from "./ScoreHeader";
 import { SeverityGroup } from "./SeverityGroup";
 import { PassedSection } from "./PassedSection";
@@ -9,9 +9,11 @@ import { ShareLinkManager } from "./ShareLinkManager";
 export function ReportView({
   report,
   printMode = false,
+  initialShareLinks = [],
 }: {
   report: ScanReportResponse;
   printMode?: boolean;
+  initialShareLinks?: ShareLinkResponse[];
 }) {
   const showOwnerControls = Boolean(report.is_owner) && !printMode && Boolean(report.scan_job_id);
 
@@ -29,7 +31,9 @@ export function ReportView({
       <PassedSection findings={report.findings} />
       <SkippedSection findings={report.findings} />
 
-      {showOwnerControls ? <ShareLinkManager scanJobId={report.scan_job_id as string} /> : null}
+      {showOwnerControls ? (
+        <ShareLinkManager scanJobId={report.scan_job_id as string} initialLinks={initialShareLinks} />
+      ) : null}
     </div>
   );
 }

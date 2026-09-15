@@ -42,6 +42,9 @@ export default async function ReportPage({
     throw err;
   }
 
+  const initialShareLinks =
+    report.is_owner && token ? await api.listShareLinks(scanId, token).catch(() => []) : [];
+
   return (
     <>
       {!printMode ? (
@@ -59,7 +62,7 @@ export default async function ReportPage({
           </nav>
         </header>
       ) : null}
-      <ReportView report={report} printMode={printMode} />
+      <ReportView report={report} printMode={printMode} initialShareLinks={initialShareLinks} />
     </>
   );
 }

@@ -1,16 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { api, ApiError } from "../../lib/api";
 import type { ShareLinkResponse } from "../../lib/types";
 
 const JWT_TEMPLATE = process.env.NEXT_PUBLIC_CLERK_JWT_TEMPLATE ?? "vigilo-api";
 
-export function ShareLinkManager({ scanJobId }: { scanJobId: string }) {
+export function ShareLinkManager({
+  scanJobId,
+  initialLinks,
+}: {
+  scanJobId: string;
+  initialLinks: ShareLinkResponse[];
+}) {
   const { getToken } = useAuth();
-  const [links, setLinks] = useState<ShareLinkResponse[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [links, setLinks] = useState<ShareLinkResponse[]>(initialLinks);
   const [creating, setCreating] = useState(false);
   const [newLinkUrl, setNewLinkUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,12 +25,6 @@ export function ShareLinkManager({ scanJobId }: { scanJobId: string }) {
     if (!token) return;
     setLinks(await api.listShareLinks(scanJobId, token));
   }, [getToken, scanJobId]);
-
-  useEffect(() => {
-    refresh()
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Couldn't load share links."))
-      .finally(() => setLoading(false));
-  }, [refresh]);
 
   async function handleCreate() {
     setError(null);
@@ -77,9 +76,7 @@ export function ShareLinkManager({ scanJobId }: { scanJobId: string }) {
 
       {error ? <p className="mt-2 text-xs text-severity-critical">{error}</p> : null}
 
-      {loading ? (
-        <p className="mt-2 text-sm text-black/50 dark:text-white/50">Loading…</p>
-      ) : links.length === 0 ? (
+      {links.length === 0 ? (
         <p className="mt-2 text-sm text-black/50 dark:text-white/50">No share links yet.</p>
       ) : (
         <ul className="mt-2 space-y-2">
