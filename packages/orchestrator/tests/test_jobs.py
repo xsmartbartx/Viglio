@@ -133,6 +133,28 @@ async def test_run_scan_job_enqueues_a_scan_failed_alert_when_probing_raises(
     assert redis.enqueued == [("record_scan_failed_alert_job", (str(job.id), "probing failed"))]
 
 
+async def test_run_scan_job_enqueues_a_scan_failed_alert_when_evaluating_raises(
+    db_schema, monkeypatch
+):
+    job, _target = await _make_authorized_job()
+
+    async def fake_run_probes(url, tier=None, **kwargs):
+        return _load_bundle("good-config.json")
+
+    def failing_evaluate(bundle, tier):
+        raise RuntimeError("simulated evaluation crash")
+
+    monkeypatch.setattr(jobs, "run_probes", fake_run_probes)
+    monkeypatch.setattr(jobs, "_evaluate", failing_evaluate)
+
+    redis = _FakeRedis()
+    await jobs.run_scan_job({"redis": redis}, str(job.id))
+
+    assert redis.enqueued == [
+        ("record_scan_failed_alert_job", (str(job.id), "evaluation failed"))
+    ]
+
+
 async def test_run_scan_job_completes_even_when_email_delivery_fails(db_schema, monkeypatch):
     job, _target = await _make_authorized_job()
 
@@ -160,9 +182,7 @@ class _FakeRedis:
         self.enqueued.append((function, args))
 
 
-async def test_run_scan_job_enqueues_remediation_generation_and_regression_detection_when_ctx_has_redis(
-    db_schema, monkeypatch
-):
+async def test_run_scan_job_enqueues_remediations_and_regression_detection(db_schema, monkeypatch):
     job, _target = await _make_authorized_job()
 
     async def fake_run_probes(url, tier=None, **kwargs):
