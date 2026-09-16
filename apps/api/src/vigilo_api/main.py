@@ -4,7 +4,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from vigilo_api.errors import handle_structured_error
-from vigilo_api.routers import accounts, billing, reports, scans, share_links, targets
+from vigilo_api.routers import (
+    accounts,
+    badge,
+    billing,
+    monitors,
+    reports,
+    scans,
+    share_links,
+    targets,
+)
 from vigilo_core.config import config
 from vigilo_core.errors import StructuredError
 
@@ -35,6 +44,8 @@ app.include_router(accounts.router)
 app.include_router(reports.router)
 app.include_router(share_links.router)
 app.include_router(billing.router)
+app.include_router(monitors.router)
+app.include_router(badge.router)
 
 
 @app.get("/healthz")

@@ -112,8 +112,15 @@ async def get_target_monitor(
 async def disable_target_monitor(
     monitor_id: uuid.UUID, account: AccountDep, session: SessionDep
 ) -> MonitorResponse:
+    # Ownership must be checked *before* mutating — a plain 404 on mismatch
+    # (not 403) so ownership can't be probed by status code, matching
+    # targets.py's precedent.
+    existing = await get_monitor(session, monitor_id)
+    if existing is None or existing.account_id != account.id:
+        raise HTTPException(status_code=404, detail="monitor not found")
+
     monitor = await disable_monitor_row(session, monitor_id)
-    if monitor is None or monitor.account_id != account.id:
+    if monitor is None:
         raise HTTPException(status_code=404, detail="monitor not found")
     return _to_response(monitor)
 
