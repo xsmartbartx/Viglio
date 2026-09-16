@@ -57,6 +57,7 @@ export interface ReportFindingResponse {
 
 export interface ScanReportResponse {
   scan_job_id: string | null;
+  target_id: string | null;
   is_owner: boolean | null;
   target_origin: string;
   registry_version: string;
@@ -85,6 +86,69 @@ export interface ShareLinkResponse {
   expires_at: string | null;
   revoked_at: string | null;
   view_count: number;
+  created_at: string;
+}
+
+export interface EntitlementsResponse {
+  plan_id: string;
+  targets_limit: number | null;
+  scans_per_month_limit: number | null;
+  active_tier_allowed: boolean;
+  share_links_allowed: boolean;
+  monitoring_frequency: string | null;
+  monitors_limit: number | null;
+  api_keys_limit: number | null;
+  repo_connectors_limit: number | null;
+}
+
+export interface AccountResponse {
+  account_id: string;
+  email: string;
+  status: string;
+  created_at: string;
+  entitlements: EntitlementsResponse;
+}
+
+export interface TargetResponse {
+  target_id: string;
+  origin: string;
+  verification_status: Tier;
+  verified_at: string | null;
+  verification_method: string | null;
+}
+
+export interface MonitorResponse {
+  monitor_id: string;
+  target_id: string;
+  cadence_hours: number;
+  enabled: boolean;
+  next_run_at: string;
+  quiet_start_utc: number | null;
+  quiet_end_utc: number | null;
+}
+
+export interface ScoreHistoryEntry {
+  scan_id: string;
+  score: number;
+  grade: string;
+  registry_version: string;
+  created_at: string;
+}
+
+export type AlertType =
+  | "new_critical"
+  | "new_high"
+  | "regressed"
+  | "cert_expiry"
+  | "score_drop"
+  | "scan_failed";
+
+export interface AlertResponse {
+  alert_id: string;
+  type: AlertType;
+  severity: Severity | null;
+  fingerprint: string | null;
+  sent_at: string | null;
   created_at: string;
 }
 

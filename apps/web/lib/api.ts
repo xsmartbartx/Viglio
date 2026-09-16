@@ -3,13 +3,18 @@
 // (the CORS middleware in apps/api/src/vigilo_api/main.py is scoped to
 // exactly this: browser calls for PDF export and share-link management).
 import type {
+  AccountResponse,
+  AlertResponse,
   ApiErrorBody,
+  MonitorResponse,
   PdfStatusResponse,
   ScanReportResponse,
   ScanStatusResponse,
   ScanSubmissionResponse,
+  ScoreHistoryEntry,
   ShareLinkCreateResponse,
   ShareLinkResponse,
+  TargetResponse,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -91,6 +96,34 @@ export const api = {
       `/v1/share-links/${shareLinkId}/revoke`,
       { method: "POST", token },
     ),
+
+  getMe: (token: string) => request<AccountResponse>("/v1/me", { token }),
+
+  getTarget: (targetId: string, token: string) =>
+    request<TargetResponse>(`/v1/targets/${targetId}`, { token }),
+
+  getTargetMonitor: (targetId: string, token: string) =>
+    request<MonitorResponse>(`/v1/targets/${targetId}/monitors`, { token }),
+
+  createTargetMonitor: (
+    targetId: string,
+    token: string,
+    body: { cadence_hours: number; quiet_start_utc?: number | null; quiet_end_utc?: number | null },
+  ) =>
+    request<MonitorResponse>(`/v1/targets/${targetId}/monitors`, {
+      method: "POST",
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  disableMonitor: (monitorId: string, token: string) =>
+    request<MonitorResponse>(`/v1/monitors/${monitorId}/disable`, { method: "POST", token }),
+
+  getTargetScoreHistory: (targetId: string, token: string) =>
+    request<ScoreHistoryEntry[]>(`/v1/targets/${targetId}/scores`, { token }),
+
+  getTargetAlerts: (targetId: string, token: string) =>
+    request<AlertResponse[]>(`/v1/targets/${targetId}/alerts`, { token }),
 };
 
 export function apiBaseUrl(): string {
