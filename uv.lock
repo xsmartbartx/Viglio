@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 [manifest]
 members = [
     "vigilo-api",
+    "vigilo-billing",
     "vigilo-checks",
     "vigilo-cli",
     "vigilo-core",
@@ -1295,6 +1296,17 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "httpx", specifier = ">=0.27" }]
+
+[[package]]
+name = "vigilo-billing"
+version = "0.1.0"
+source = { editable = "packages/billing" }
+dependencies = [
+    { name = "vigilo-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "vigilo-core", editable = "packages/core" }]
 
 [[package]]
 name = "vigilo-checks"
