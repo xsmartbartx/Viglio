@@ -59,6 +59,11 @@ async def get_monitor_by_target(session: AsyncSession, target_id: uuid.UUID) -> 
     return Monitor.model_validate(row) if row else None
 
 
+async def get_monitor(session: AsyncSession, monitor_id: uuid.UUID) -> Monitor | None:
+    row = await session.get(MonitorRow, monitor_id)
+    return Monitor.model_validate(row) if row else None
+
+
 async def due_monitors(session: AsyncSession, now: datetime) -> list[Monitor]:
     result = await session.execute(
         select(MonitorRow).where(MonitorRow.enabled.is_(True), MonitorRow.next_run_at <= now)

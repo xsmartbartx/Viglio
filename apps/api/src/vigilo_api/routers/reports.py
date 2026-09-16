@@ -56,6 +56,7 @@ async def get_scan_report(
     findings = await get_findings_for_scan(session, scan.id)
     response = await render_scan_report(session, target.origin if target else "", scan, findings)
     response.scan_job_id = scan_job_id
+    response.target_id = job.target_id
     response.is_owner = await _is_owner(session, account, job.target_id)
     return response
 

@@ -121,6 +121,7 @@ class ReportFindingResponse(BaseModel):
 
 class ScanReportResponse(BaseModel):
     scan_job_id: uuid.UUID | None = None
+    target_id: uuid.UUID | None = None
     is_owner: bool | None = None
     target_origin: str
     registry_version: str
@@ -159,3 +160,36 @@ class ShareLinkResponse(BaseModel):
 class ShareLinkRevokeResponse(BaseModel):
     share_link_id: uuid.UUID
     revoked_at: datetime
+
+
+class MonitorCreate(BaseModel):
+    cadence_hours: int
+    quiet_start_utc: int | None = None
+    quiet_end_utc: int | None = None
+
+
+class MonitorResponse(BaseModel):
+    monitor_id: uuid.UUID
+    target_id: uuid.UUID
+    cadence_hours: int
+    enabled: bool
+    next_run_at: datetime
+    quiet_start_utc: int | None
+    quiet_end_utc: int | None
+
+
+class ScoreHistoryEntry(BaseModel):
+    scan_id: uuid.UUID
+    score: float
+    grade: str
+    registry_version: str
+    created_at: datetime
+
+
+class AlertResponse(BaseModel):
+    alert_id: uuid.UUID
+    type: str
+    severity: str | None
+    fingerprint: str | None
+    sent_at: datetime | None
+    created_at: datetime
