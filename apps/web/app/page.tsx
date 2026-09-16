@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Show, UserButton } from "@clerk/nextjs";
 import { ScanSubmitForm } from "../components/ScanSubmitForm";
+import { Footer } from "../components/Footer";
 import { brand } from "../lib/brand";
 
 export default function Home() {
@@ -24,6 +25,7 @@ export default function Home() {
         </div>
         <ScanSubmitForm />
       </main>
+      <Footer />
     </>
   );
 }
