@@ -46,7 +46,11 @@ class AlertRow(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     monitor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("monitors.id"), index=True)
     target_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("targets.id"), index=True)
-    scan_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("scans.id"), index=True)
+    scan_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("scans.id"), index=True, default=None
+    )
+    """`null` for `scan_failed` — the job never reached `record_scan_result()`,
+    so no `Scan` row exists to reference."""
     type: Mapped[str] = mapped_column(String(32))
     severity: Mapped[str | None] = mapped_column(String(16), default=None)
     fingerprint: Mapped[str | None] = mapped_column(String(128), default=None)

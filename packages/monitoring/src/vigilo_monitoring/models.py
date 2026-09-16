@@ -31,7 +31,7 @@ class Alert(BaseModel):
     id: uuid.UUID
     monitor_id: uuid.UUID
     target_id: uuid.UUID
-    scan_id: uuid.UUID
+    scan_id: uuid.UUID | None
     type: str
     severity: str | None
     fingerprint: str | None

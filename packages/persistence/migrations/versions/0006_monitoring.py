@@ -4,7 +4,9 @@ per target, matching `create_monitor()`'s idempotent-by-target upsert.
 `alerts.target_id` is denormalized alongside `monitor_id` so alert history
 stays queryable even if the owning monitor is later deleted, the same
 "redundant FK for a different query shape" precedent `scans.target_id`
-already sets alongside `scan_jobs.target_id`.
+already sets alongside `scan_jobs.target_id`. `alerts.scan_id` is nullable
+— a `scan_failed` alert fires when the job never reached
+`record_scan_result()`, so there is no `Scan` row to reference.
 
 Revision ID: 0006
 Revises: 0005
@@ -65,7 +67,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("monitor_id", sa.Uuid(), nullable=False),
         sa.Column("target_id", sa.Uuid(), nullable=False),
-        sa.Column("scan_id", sa.Uuid(), nullable=False),
+        sa.Column("scan_id", sa.Uuid(), nullable=True),
         sa.Column("type", sa.String(length=32), nullable=False),
         sa.Column("severity", sa.String(length=16), nullable=True),
         sa.Column("fingerprint", sa.String(length=128), nullable=True),

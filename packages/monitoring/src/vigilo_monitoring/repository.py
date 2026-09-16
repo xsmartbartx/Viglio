@@ -105,7 +105,7 @@ async def record_alert(
     session: AsyncSession,
     monitor_id: uuid.UUID,
     target_id: uuid.UUID,
-    scan_id: uuid.UUID,
+    scan_id: uuid.UUID | None,
     type: str,
     dedupe_key: str,
     severity: str | None = None,

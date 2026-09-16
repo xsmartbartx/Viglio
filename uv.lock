@@ -1608,9 +1608,13 @@ version = "0.1.0"
 source = { editable = "apps/scanner" }
 dependencies = [
     { name = "arq" },
+    { name = "vigilo-billing" },
     { name = "vigilo-checks" },
     { name = "vigilo-core" },
+    { name = "vigilo-identity" },
     { name = "vigilo-integrations" },
+    { name = "vigilo-monitoring" },
+    { name = "vigilo-notification" },
     { name = "vigilo-orchestrator" },
     { name = "vigilo-persistence" },
     { name = "vigilo-probes" },
@@ -1628,9 +1632,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "arq", specifier = ">=0.26" },
+    { name = "vigilo-billing", editable = "packages/billing" },
     { name = "vigilo-checks", editable = "packages/checks" },
     { name = "vigilo-core", editable = "packages/core" },
+    { name = "vigilo-identity", editable = "packages/identity" },
     { name = "vigilo-integrations", editable = "packages/integrations" },
+    { name = "vigilo-monitoring", editable = "packages/monitoring" },
+    { name = "vigilo-notification", editable = "packages/notification" },
     { name = "vigilo-orchestrator", editable = "packages/orchestrator" },
     { name = "vigilo-persistence", editable = "packages/persistence" },
     { name = "vigilo-probes", editable = "packages/probes" },
