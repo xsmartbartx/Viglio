@@ -19,6 +19,16 @@ async def test_get_me_returns_the_authenticated_account(client):
     body = response.json()
     assert body["email"] == "owner@example.com"
     assert body["status"] == "active"
+    assert body["entitlements"] == {
+        "plan_id": "free",
+        "targets_limit": 1,
+        "scans_per_month_limit": 3,
+        "active_tier_allowed": False,
+        "share_links_allowed": False,
+        "monitoring_frequency": None,
+        "api_keys_limit": None,
+        "repo_connectors_limit": None,
+    }
 
 
 async def test_get_me_requires_authentication(client):

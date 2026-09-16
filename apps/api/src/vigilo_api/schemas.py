@@ -53,6 +53,14 @@ class AccountResponse(BaseModel):
     entitlements: EntitlementsResponse
 
 
+class CheckoutRequest(BaseModel):
+    plan_id: str
+
+
+class CheckoutResponse(BaseModel):
+    checkout_url: str
+
+
 class TargetCreate(BaseModel):
     origin: str
 

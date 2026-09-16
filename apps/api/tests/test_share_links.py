@@ -5,7 +5,7 @@ import uuid
 from vigilo_api.deps import require_account
 from vigilo_api.main import app
 from vigilo_core.models import Confidence, Finding, Score, Severity, Tier, Verdict
-from vigilo_identity.repository import get_or_create_account
+from vigilo_identity.repository import get_account_by_id, get_or_create_account, upsert_subscription
 from vigilo_orchestrator.service import advance, create_scan_job, record_scan_result
 from vigilo_persistence import session_scope
 from vigilo_project.repository import create_target, get_or_create_default_project
@@ -14,6 +14,19 @@ from vigilo_project.repository import create_target, get_or_create_default_proje
 async def _make_completed_scan(email: str = "owner@example.com"):
     async with session_scope() as session:
         account = await get_or_create_account(session, email=email)
+        # Free plan doesn't include share links (Phase 7) — these tests are
+        # about the share-link lifecycle, not plan gating, so seed a plan
+        # that has them.
+        await upsert_subscription(
+            session,
+            account_id=account.id,
+            plan_id="builder",
+            status="active",
+            provider="paddle",
+            provider_subscription_id=f"sub_{email}",
+            current_period_end=None,
+        )
+        account = await get_account_by_id(session, account.id)
         project = await get_or_create_default_project(session, account.id)
         target = await create_target(session, project.id, "https://example.com")
         job = await create_scan_job(session, target.id, Tier.PASSIVE, email, "0.1")
@@ -110,6 +123,42 @@ async def test_someone_else_cannot_create_a_share_link_for_a_scan_they_do_not_ow
 
     response = await client.post(f"/v1/scans/{job.id}/share-links", json={})
     assert response.status_code == 404
+
+
+async def test_create_share_link_is_denied_on_the_free_plan(client):
+    """Free plan doesn't include share links (packages/billing/plans.py) —
+    unlike `_make_completed_scan`'s other callers, this test deliberately
+    leaves the account on its default (Free) plan."""
+    async with session_scope() as session:
+        account = await get_or_create_account(session, email="free-owner@example.com")
+        project = await get_or_create_default_project(session, account.id)
+        target = await create_target(session, project.id, "https://example.com")
+        job = await create_scan_job(session, target.id, Tier.PASSIVE, account.email, "0.1")
+        job = await advance(session, job.id, "authorized")
+        job = await advance(session, job.id, "probing")
+        job = await advance(session, job.id, "evaluating")
+        job = await advance(session, job.id, "scoring")
+        findings = [
+            Finding(
+                check_id="VG-HDR-001",
+                verdict=Verdict.FAILED,
+                severity=Severity.HIGH,
+                confidence=Confidence.CONFIRMED,
+                title="HSTS enforced",
+                summary="No HSTS header present.",
+                fingerprint="fp1",
+            )
+        ]
+        score = Score(value=72.0, grade="C", registry_version="0.1")
+        await record_scan_result(session, job, findings, score, duration_ms=10)
+        await advance(session, job.id, "reporting")
+        await advance(session, job.id, "complete")
+    app.dependency_overrides[require_account] = lambda: account
+
+    response = await client.post(f"/v1/scans/{job.id}/share-links", json={})
+
+    assert response.status_code == 429
+    assert response.json()["code"] == "QUOTA_EXCEEDED"
 
 
 async def test_revoke_of_an_unknown_share_link_returns_404(client):
