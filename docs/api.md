@@ -7,8 +7,11 @@ this is the concrete Phase 3 endpoint list. No domain logic lives in a
 handler — each one validates, delegates to a module's repository/service
 functions, and serialises the result, per that module's own boundary rule.
 
-Base URL: whatever `apps/api` is deployed at, no version-independent prefix
-beyond `/v1`. Auth: a Clerk session JWT as `Authorization: Bearer <token>`,
+Base URL: whatever `apps/api` is deployed at. Every endpoint is under `/v1`
+except `GET /badge/{target_id}.svg` (Phase 8) — deliberately unversioned
+and prefix-free, since it's meant to be embedded by URL in a third-party
+`<img>` tag, not called as part of the versioned API contract. Auth: a
+Clerk session JWT as `Authorization: Bearer <token>`,
 verified against `CLERK_JWKS_URL` (`packages/apps/api/src/vigilo_api/auth.py`).
 Errors: any `StructuredError` raised inside a handler is mapped to an HTTP
 status by `vigilo_api.errors.handle_structured_error`; the body is always
@@ -102,17 +105,18 @@ default `Project`.
   "entitlements": {
     "plan_id": "free", "targets_limit": 1, "scans_per_month_limit": 3,
     "active_tier_allowed": false, "share_links_allowed": false,
-    "monitoring_frequency": null, "api_keys_limit": null, "repo_connectors_limit": null
+    "monitoring_frequency": null, "monitors_limit": 0,
+    "api_keys_limit": null, "repo_connectors_limit": null
   }
 }
 ```
 
-`entitlements` (Phase 7) is `vigilo_billing.entitlements(account.plan_id)`,
-computed fresh on every call — nothing here is cached or stored
-separately from `accounts.plan_id`. `monitoring_frequency`/
-`api_keys_limit`/`repo_connectors_limit` are Phase 8/9-shaped fields with
-no enforcement behind them yet (no monitor, API key, or repo connector
-exists to restrict).
+`entitlements` is `vigilo_billing.entitlements(account.plan_id)`, computed
+fresh on every call — nothing here is cached or stored separately from
+`accounts.plan_id`. `monitoring_frequency`/`monitors_limit` are enforced as
+of Phase 8 (`POST /v1/targets/{id}/monitors` below); `api_keys_limit`/
+`repo_connectors_limit` remain Phase 9-shaped fields with no enforcement
+behind them yet (no API key or repo connector exists to restrict).
 
 **Errors**: `401` missing/invalid/expired token, or a token whose claims
 have no email and no prior linked account.
@@ -205,6 +209,7 @@ without a second round trip.
 ```json
 {
   "scan_job_id": "...",
+  "target_id": "...",
   "is_owner": true,
   "target_origin": "https://example.com",
   "registry_version": "0.1",
@@ -237,6 +242,11 @@ without a second round trip.
 
 **Errors**: `404` unknown job, `409` the job exists but hasn't reached
 scoring yet — distinguishes "keep polling" from "wrong id."
+
+`target_id` (Phase 8) lets `apps/web` link into the monitoring dashboard
+(`/targets/{id}/monitoring`) without a second lookup — like `scan_job_id`
+and `is_owner`, it's `null` on `GET /v1/share/{token}`'s response below
+(the shared, public view never exposes the owner's internal ids).
 
 ## `POST /v1/scans/{scan_job_id}/report/pdf` — request a PDF render
 
@@ -348,6 +358,88 @@ writes an `audit_events` row (`action="subscription_updated"`).
 
 ---
 
+## `POST /v1/targets/{target_id}/monitors` — enable monitoring (Phase 8)
+
+Auth required, caller must own the target.
+
+**Request**: `{ "cadence_hours": 168, "quiet_start_utc": null, "quiet_end_utc": null }`
+(`quiet_start_utc`/`quiet_end_utc` optional, hour 0-23 UTC, both `null` = no
+quiet hours).
+
+**Behavior.** `cadence_hours` is validated against
+`entitlements(account.plan_id).monitoring_frequency`: `null` → denied
+outright (monitoring not on this plan); `"weekly"` → must equal exactly
+`168`; `"daily+custom"` → any value `1`-`168`. If no monitor exists yet for
+this target, the account's `MONITORS` quota is checked before creating one
+— re-enabling or reconfiguring an existing monitor (this endpoint is
+idempotent by target) never counts against it, matching
+`POST /v1/targets`' own only-count-if-new precedent.
+
+**Response `201`**
+
+```json
+{
+  "monitor_id": "...", "target_id": "...", "cadence_hours": 168, "enabled": true,
+  "next_run_at": "2026-09-23T19:00:00Z", "quiet_start_utc": null, "quiet_end_utc": null
+}
+```
+
+**Errors**: `404` target not owned/found, `422` `cadence_hours` incompatible
+with the plan, `429` `QUOTA_EXCEEDED` (monitoring not included in the plan,
+or the `MONITORS` limit reached).
+
+## `GET /v1/targets/{target_id}/monitors` — current monitor state
+
+Auth required, caller must own the target.
+
+**Response `200`**: same shape as the `POST` response above.
+
+**Errors**: `404` target not owned/found, or no monitor exists for it yet.
+
+## `POST /v1/monitors/{monitor_id}/disable` — turn off monitoring
+
+Auth required, ownership checked via `Monitor.account_id` (denormalized —
+`docs/data-model.md`) before anything is mutated. `404`, not `403`, on
+ownership mismatch, matching `share_links.py`'s revoke precedent.
+
+**Response `200`**: same shape as `POST .../monitors` above, with
+`"enabled": false`.
+
+**Errors**: `404` unknown monitor or not owned.
+
+## `GET /v1/targets/{target_id}/scores` — score history
+
+Auth required, caller must own the target. Most-recent-first.
+
+**Response `200`**: `[{ "scan_id": "...", "score": 92.0, "grade": "A", "registry_version": "0.1", "created_at": "..." }]`
+
+## `GET /v1/targets/{target_id}/alerts` — recent alerts
+
+Auth required, caller must own the target. Most-recent-first, capped at 20.
+
+**Response `200`**: `[{ "alert_id": "...", "type": "regressed", "severity": "high", "fingerprint": "...", "sent_at": "...", "created_at": "..." }]`
+
+`type` is one of `new_critical`/`new_high`/`regressed`/`cert_expiry`/
+`score_drop`/`scan_failed` (`docs/modules.md` §9). `severity`/`fingerprint`
+are `null` for `score_drop`/`scan_failed`. `sent_at` is `null` until the
+alert email actually delivers.
+
+## `GET /badge/{target_id}.svg` — embeddable score badge (Phase 8)
+
+**No auth** — deliberately public, and outside the `/v1` prefix (see
+"Purpose" above). Meant for a plain `<img>` tag on the target owner's own
+site. Reuses `Target.id` directly rather than a separate `public_id` —
+see `docs/security.md` §8 for why that's safe.
+
+**Response `200`**: `image/svg+xml`, `Cache-Control: public, max-age=3600`.
+Renders the target's most recent scan's grade/score/date — nothing else;
+`render_badge()`'s signature makes leaking finding data structurally
+impossible, not just filtered out.
+
+**Errors**: `404` unknown target, or no scan yet for it.
+
+---
+
 ## Error-code → HTTP status mapping (`vigilo_api/errors.py`)
 
 | `ErrorCode` | Status |
@@ -370,4 +462,6 @@ for third-party integrations (Phase 9), the public REST API's
 rate-limited, key-authenticated surface distinct from this
 session-authenticated one (Phase 9), the MCP server (Phase 9). Billing
 endpoints shipped in Phase 7 (above) — stubbed against Paddle, no real
-account.
+account. Monitoring endpoints shipped in Phase 8 (above); webhook delivery
+for alerts (the vision doc's "email in v1, webhook in v2" framing,
+`docs/modules.md` §10) remains v2 — email is the only channel implemented.

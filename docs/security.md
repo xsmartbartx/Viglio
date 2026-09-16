@@ -240,9 +240,41 @@ on. This is a deliberate availability trade-off, not a validation gap: the
 signature check has already run by this point, so an attacker cannot use
 this path to probe for accepted event shapes without a valid signature.
 
+## 8. Monitoring — scheduled re-authorization and the public badge route
+
+**Status: implemented, `packages/monitoring`, `apps/scanner/src/
+vigilo_scanner/jobs.py`, `apps/api/src/vigilo_api/routers/{monitors,badge}.py`.**
+
+**Scheduled scans reuse the exact same authorization path.** A monitor
+never bypasses `resolve_authorization()` — `check_due_monitors_job`
+always requests active tier and lets the same function `submit_scan()`
+calls downgrade it, re-verifying `has_valid_ownership_proof()` on every
+cycle. This is what makes "ownership revocation immediately downgrades all
+future scheduled scans" (§3's authorization-order guarantee, extended)
+true in practice, not just in principle: there is no separate,
+monitor-specific authorization code path that could drift out of sync
+with the one HTTP submission uses.
+
+**`GET /badge/{target_id}.svg` is deliberately public** — meant to be
+embedded cross-origin via a plain `<img>` tag on the target owner's own
+site, the same posture `GET /v1/scans/{id}/report` already established
+("an unguessable UUID is already a de facto share link," §7 of
+`docs/architecture.md`). It leaks no finding data **by construction**, not
+by a filter that could be forgotten: `render_badge()`
+(`packages/reporting/src/vigilo_reporting/badge.py`) takes only a `Score`
+and a timestamp as arguments — there is no code path by which a finding
+title, check id, or evidence string could reach the SVG it returns.
+
+**Alert emails never carry evidence.** `packages/notification`'s
+templates render only `event_type`/`check_id`/`severity` — the same
+allowlist discipline §6 established for the LLM remediation prompt boundary,
+applied here to outbound email instead of an outbound model call. Every
+alert links to the monitoring dashboard (an authenticated page), never
+directly to a finding's evidence panel.
+
 ## References
 
 ADR-0001, ADR-0002, ADR-0003 (including its Phase 3 addendum), ADR-0004,
 `docs/architecture.md` §7 and §15 (numbered as such in
 `docs/prooflight-vision-and-architecture.md`), `docs/modules.md` §2, §2a, §2b,
-§11, `docs/data-model.md`.
+§9, §10, §11, `docs/data-model.md`.

@@ -66,7 +66,10 @@ apps/
   ├─ api/                             # FastAPI control plane
   ├─ cli/                             # `vigilo scan <url>`
   └─ scanner/                         # ARQ worker (isolated network zone — the only
-                                       #   control-plane process that imports probes)
+                                       #   control-plane process that imports probes);
+                                       #   also owns the monitoring cron/diff job bodies
+                                       #   (Phase 8 — avoids a package-level dependency
+                                       #   cycle, see docs/modules.md §9)
 packages/
   ├─ core/                            # models, validation, logging, errors, config
   ├─ persistence/                     # SQLAlchemy Base, async engine/session, Alembic
@@ -82,6 +85,8 @@ packages/
                                        #   Anthropic (LLM remediation), Paddle (billing)
   ├─ reporting/                       # HTML/PDF/badge rendering (Phase 4)
   ├─ billing/                         # entitlements + quota decisions, pure (Phase 7)
+  ├─ monitoring/                      # scheduling, scan diffing, alerts (Phase 8)
+  ├─ notification/                    # renders and sends alert emails (Phase 8)
   └─ mcp/                             # MCP server (Phase 9)
 docs/
   ├─ vision.md
@@ -176,7 +181,7 @@ uv sync --all-packages          # installs every package/app into one .venv
 uv run playwright install chromium   # one-time: the PDF-export render target
 docker compose up -d            # postgres, redis, minio — bound to localhost only
 uv run alembic -c packages/persistence/alembic.ini upgrade head   # create the schema
-uv run pytest -q                # full test suite, including both build-blocking suites
+uv run pytest -q                # full test suite, including all four build-blocking suites
                                  # — runs against DATABASE_URL, resetting its schema each
                                  # time (packages/persistence's temporary_schema() fixture);
                                  # re-run the alembic command above afterwards if you want
@@ -185,7 +190,10 @@ uv run ruff check .
 uv run vigilo scan https://example.com     # a real, live scan end to end, no persistence
 uv run arq vigilo_scanner.worker.WorkerSettings   # the ARQ worker (no --app-dir — every
                                                    # workspace package installs into the
-                                                   # one shared .venv `uv sync` builds)
+                                                   # one shared .venv `uv sync` builds).
+                                                   # Also runs check_due_monitors_job as an
+                                                   # ARQ cron job (every 15 min, Phase 8) —
+                                                   # nothing extra to start for monitoring.
 uv run uvicorn vigilo_api.main:app --reload --app-dir apps/api/src         # the control plane
 ```
 
@@ -221,6 +229,39 @@ Stop the local infra with `docker compose down` when done.
 ---
 
 ## Status
+
+**Phase 8 (Monitoring) complete — built in full, not scoped down.** Vigilo
+is continuous now: a scheduler (`packages/monitoring`, an ARQ cron job
+every 15 minutes) re-scans monitored targets, diffs each new scan against
+the last by finding fingerprint, and alerts on what changed —
+`new_critical`/`new_high` (a fingerprint failing for the first time ever),
+`regressed` (failing again after being resolved — distinguished from
+"new" by a fingerprint history query spanning every prior scan, not just
+the immediately preceding one), `cert_expiry` (reusing the existing
+`VG-TLS-004` check's data, no new TLS read), `score_drop` (hysteresis-
+gated — confirmed only on a second consecutive drop, or immediately
+alongside a critical finding), and `scan_failed`. A new
+`packages/notification` renders and emails alerts, batching more than five
+into one digest per the vision doc's rule. `packages/billing` gained a
+`MONITORS` per-plan limit (monitored scans themselves don't consume the
+`SCANS_MONTHLY` quota — a deliberate product decision, not an oversight).
+A real architectural problem surfaced during planning and got solved
+cleanly: `packages/monitoring` depends on `packages/orchestrator`, so the
+new job bodies live in `apps/scanner` instead of alongside the other ARQ
+jobs, reached by ARQ's string-based `enqueue_job` rather than a Python
+import, keeping the package dependency graph acyclic. `apps/web` gained a
+full monitoring dashboard — toggle, cadence/quiet-hours controls, a
+hand-rolled inline-SVG score-history chart (no new charting dependency),
+an alert timeline, and a badge-embed snippet for `GET /badge/{target_id}.svg`
+(public, embeddable, already-built `render_badge()` from Phase 7 finally
+wired to a route). Verified by test, not just review, against the exact
+roadmap wording: a fingerprint failing, resolving, then failing again
+produces exactly one `regressed` alert, never `new_critical`, never more
+than one — now its own build-blocking CI job,
+`regression-diff-suite`. See `docs/build-roadmap.md`'s Phase 8 entry for
+the full account, including what could and couldn't be verified live (the
+authenticated dashboard render hit the same Clerk bot-check that's blocked
+full UI verification since Phase 4).
 
 **Phase 7 (Monetisation, scoped) complete.** `Account.plan_id` is real now:
 three static plans (Free/Builder/Studio) enforced from one place
@@ -332,11 +373,12 @@ process that talks to a target, enforced by a static import-boundary test.
 storage). Both Phase 3 exit criteria run end to end locally against real
 Postgres/Redis/MinIO.
 
-Still ahead: monitoring (scheduled re-scans, score history, alerts) and
-distribution (public API, CI integrations, badge) — see
-`docs/build-roadmap.md` for what's next. All documents in `/docs` are
-authoritative for implementation and must be updated by the responsible
-agent whenever behaviour changes.
+Still ahead: distribution — a rate-limited, key-authenticated public REST
+API distinct from today's session-authenticated one, outbound alert
+webhooks, and an MCP server exposing `run_scan`/`get_findings`/
+`get_fix_prompt` as tools — see `docs/build-roadmap.md` for what's next.
+All documents in `/docs` are authoritative for implementation and must be
+updated by the responsible agent whenever behaviour changes.
 
 ## Licence
 

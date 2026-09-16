@@ -62,8 +62,11 @@ flowchart TD
     PROJECT --> API
     CHECKS --> API
     REPORTING --> API
+    PERSIST --> MONITOR
     MONITOR --> ORCH
     MONITOR --> NOTIFY
+    MONITOR --> API
+    INTEG --> NOTIFY
     CORE --> BILLING
     BILLING --> API
     INTEG --> API
@@ -82,6 +85,14 @@ latter is a genuinely new edge Phase 7 introduces — `apps/api`'s billing
 router is the first place `apps/api` imports `vigilo_integrations` directly,
 for the checkout/webhook adapter (§11's deviation note explains why this
 replaced the originally-sketched `billing --> integrations` edge instead).
+
+`PERSIST --> MONITOR`, `MONITOR --> API` and `INTEG --> NOTIFY` are Phase 8
+additions: `monitoring` owns real persistence (`MonitorRow`/`AlertRow`, §9)
+unlike `billing`, so it needs `persistence` directly; `apps/api`'s new
+monitors/badge routers (§9) are the first place `apps/api` imports
+`vigilo_monitoring`; `notification` calls `send_transactional_email()`
+(§10), so it needs `integrations` directly, exactly as originally sketched
+— no deviation there, unlike `billing`.
 
 ---
 
@@ -560,11 +571,20 @@ revoke_share_link(session, share_link_id) -> ShareLink
 get_remediations_for_findings(session, findings, registry_version) -> dict[str, RemediationPrompt]   # bulk, keyed by check_id
 cache_remediation(session, fingerprint, check_id, registry_version, prompt) -> None   # no-op unless prompt.source == "llm"
 
+# Phase 8 — score-history/diffing queries (packages/orchestrator/src/vigilo_orchestrator/service.py):
+list_scans_for_target(session, target_id, limit=50) -> list[Scan]   # score history, no new table
+list_ever_failed_fingerprints_before(session, target_id, before) -> frozenset[str]   # feeds vigilo_monitoring.diff
+get_failed_findings_for_scan(session, scan_id) -> dict[str, Finding]   # fingerprint-keyed, Verdict.FAILED only
+
 # ARQ task bodies (packages/orchestrator/src/vigilo_orchestrator/jobs.py),
 # registered by apps/scanner's WorkerSettings, never called from apps/api:
 run_scan_job(ctx, scan_job_id: str) -> None
     # Phase 6: reads job.tier and threads it into both run_probes(tier=...)
     # and plan_registry(REGISTRY, tier) — the two-layer active-tier gate.
+    # Phase 8: always enqueues "detect_regression_job" after scoring, and
+    # "record_scan_failed_alert_job" from each of its three failure
+    # branches — both by ARQ's string-based enqueue_job, never by Python
+    # import (their bodies live in apps/scanner, not here — see §9).
 verify_ownership_job(ctx, proof_id: str) -> None
 render_report_pdf_job(ctx, report_id: str) -> None
 generate_remediations_job(ctx, scan_job_id: str) -> None   # Phase 5, auto-enqueued from run_scan_job
@@ -593,41 +613,107 @@ enforcement engine behind it, per `docs/modules.md` §4.)
 
 ## 9. monitoring
 
+**Status: implemented, Phase 8.**
+
 **Responsibility.** Scheduled re-scans and regression detection.
 
-**Boundaries.** Does not scan. It schedules and compares.
+**Boundaries.** Does not scan. It schedules and compares. Persists its own
+`Monitor`/`Alert` rows (unlike `billing`, which deliberately stays
+ORM-free, §11) — a monitor's schedule and an alert's history are this
+module's own state, not something another module already owns.
 
-**API**
+**API** (`packages/monitoring/src/vigilo_monitoring/`)
 
 ```python
-create_monitor(project, cadence) -> Monitor
-due_monitors(now) -> list[Monitor]
-detect_regression(previous: Scan, current: Scan) -> RegressionReport
+create_monitor(session, target_id, account_id, cadence_hours, next_run_at,
+               quiet_start_utc=None, quiet_end_utc=None) -> Monitor   # idempotent by target_id
+due_monitors(session, now) -> list[Monitor]
+detect_regression(previous_failed: dict[str, Finding], current_failed: dict[str, Finding],
+                   ever_failed_before_previous: frozenset[str], previous_registry_version: str,
+                   current_registry_version: str, previous_score: float, current_score: float,
+                   had_pending_score_drop: bool) -> RegressionReport
+compute_next_run_at(cadence_hours, quiet_start_utc, quiet_end_utc, now, jitter_minutes=15) -> datetime
 ```
 
-**Dependencies.** core, orchestrator, scoring.
+**Deviation.** `create_monitor`/`due_monitors`/persistence functions take a
+session (this module owns real tables), but `detect_regression()` and
+`compute_next_run_at()` are pure — no session, no `Scan`/`Monitor` objects,
+just primitives and `vigilo_core.models.Finding` — matching the
+`resolve_authorization`/`consume` precedent. The sketched
+`detect_regression(previous: Scan, current: Scan)` signature would only
+distinguish "present in scan N-1" from "absent," which cannot tell a
+genuinely new finding from one that regressed after being resolved; the
+real signature adds `ever_failed_before_previous` (a fingerprint set
+spanning every scan strictly before N-1) to make that distinction, fed by
+two new `packages/orchestrator` queries (`list_scans_for_target`,
+`list_ever_failed_fingerprints_before`, §8) rather than a persistent
+per-`Finding` lifecycle-status column.
 
-**Security.** A monitor inherits the authorisation tier of its target and re-validates it
-on every run. Ownership revocation immediately downgrades all future scheduled scans.
+**Alert types.** `new_critical`/`new_high` (a fingerprint failing for the
+first time ever, severity ≥ high), `regressed` (failing again after having
+been resolved), `cert_expiry` (a special case of `VG-TLS-004`'s
+failed-transition, reusing existing persisted `FindingRow` data rather than
+a new TLS-evidence read at diff time), `score_drop` (≥10 points, gated by
+hysteresis — confirmed only on a second consecutive drop, or immediately
+alongside a `new_critical`/`cert_expiry` event), `scan_failed` (the
+scheduled job itself failed, not diff-derived — enqueued from
+`run_scan_job`'s three failure branches, `packages/orchestrator/jobs.py`).
+A `resolved` transition is computed internally but never becomes an
+`Alert` — no alert type exists for it in the domain model.
+
+**Where the job bodies live.** `check_due_monitors_job` (an ARQ cron job,
+every 15 minutes), `detect_regression_job` and `record_scan_failed_alert_job`
+are NOT in `packages/orchestrator/jobs.py` alongside the other job bodies —
+they live in `apps/scanner/src/vigilo_scanner/jobs.py` instead, since this
+module depends on `orchestrator` and putting the job bodies there too would
+make `orchestrator` depend back on `monitoring`, a cycle. `run_scan_job`
+enqueues `"detect_regression_job"`/`"record_scan_failed_alert_job"` by ARQ's
+string-based `enqueue_job`, never by Python import, so the graph stays
+one-directional — an app is always free to depend on both.
+
+**Security.** A scheduled run always requests active tier and lets
+`resolve_authorization()` downgrade it — the exact function
+`submit_scan()` uses, re-run on every cycle, so ownership revocation
+immediately downgrades the next scheduled scan. A denylisted/opted-out
+target's monitor is disabled rather than repeatedly failing.
 
 ---
 
 ## 10. notification
 
-**Responsibility.** Deliver alerts. Email in v1, webhook in v2.
+**Status: implemented, Phase 8.**
 
-**Boundaries.** No decision logic. It renders and delivers what monitoring produced.
+**Responsibility.** Deliver alerts. Email only this phase — webhooks
+remain a later addition, not built.
 
-**API**
+**Boundaries.** No decision logic. It renders and delivers what monitoring
+produced — specifically, whether several occurrences collapse into one
+digest email (the vision doc's "more than five events... collapse into a
+single summary email" rule) is `monitoring`'s decision, made by how many
+`AlertOccurrence`s it puts in one `NotificationEvent`; `notify()` only
+picks a single-alert or digest rendering based on that count, a mechanical
+choice, not a business one.
+
+**API** (`packages/notification/src/vigilo_notification/`)
 
 ```python
-notify(account, event: NotificationEvent) -> DeliveryResult
+notify(event: NotificationEvent, transport=None) -> DeliveryResult
 ```
 
-**Dependencies.** core, integrations.
+Never raises — a delivery failure (`MailDeliveryFailed`) comes back as
+`DeliveryResult(delivered=False, reason=...)`, mirroring how
+`run_scan_job` already handles its own report-email failures.
 
-**Security.** Alert bodies contain finding titles and severities, never evidence, never a
-secret fingerprint's location detail. Deep links require an authenticated session.
+**Dependencies.** core, integrations. Calls
+`vigilo_integrations.mail.send_transactional_email()` directly — no new
+integration-layer function was needed, since it was already generic
+(`to`/`subject`/`html_body`).
+
+**Security.** Alert bodies contain finding titles/check ids and
+severities, never evidence, never a secret fingerprint's location detail.
+Every email links to `{WEB_APP_URL}/targets/{id}/monitoring`, which
+requires an authenticated session — never a direct link into a finding's
+evidence panel.
 
 ---
 
@@ -650,6 +736,14 @@ interpret_webhook_event(payload: dict[str, Any]) -> MoREvent   # raises Unrecogn
 ```
 
 **Dependencies.** `core` only.
+
+**Meters (Phase 8 addition).** `Meter` gained `MONITORS` alongside the
+existing `TARGETS`/`SCANS_MONTHLY`, and `Plan` gained `monitors_limit`
+(Free `0`, Builder `3`, Studio `25` — mirroring each plan's `targets_limit`,
+since one monitor per target is the natural ceiling). Scheduled/monitored
+scans do **not** consume `SCANS_MONTHLY` — `monitors_limit` is the only
+cost bound on monitoring, checked once at monitor-creation time
+(`docs/build-roadmap.md`'s Phase 8 entry has the full reasoning).
 
 **Deviation (Phase 7).** The API above differs from the sketch this section
 originally carried in two ways, both matching the precedent Phase 3 set for
@@ -709,11 +803,13 @@ transitively through `orchestrator.service`, never imported by this app's own co
 Phase 4 adds direct dependencies on `checks` (the pure, I/O-free `REGISTRY` —
 `report_rendering.py` builds a `CheckManifest` lookup for remediation text/
 references/category, doesn't weaken the egress-import guard below) and
-`reporting` (`build_report`/`render_badge`).
+`reporting` (`build_report`/`render_badge`). Phase 8 adds `monitoring`
+(the new monitors/scores/alerts/badge routers, §9).
 
 **Security.** Authentication on every route that isn't explicitly public
 (`POST /v1/scans`, `GET /v1/scans/{id}`, `GET /v1/scans/{id}/report`, the PDF
-routes, `GET /v1/share/{token}` — see `api.md`). Request schema
+routes, `GET /v1/share/{token}`, `GET /badge/{target_id}.svg`,
+`POST /v1/billing/webhook` — see `api.md`). Request schema
 validation before dispatch. Response schema validation before release.
 Per-key rate limits (Phase 9's public API; Phase 3's session-authenticated
 surface uses a minimal scan-count ceiling instead, see `security.md` §3).

@@ -372,13 +372,100 @@ plan-gated feature that does exist (active tier).
 including `packages/billing/tests/test_import_boundary.py`'s new
 build-blocking `core`-only boundary check.
 
-## Phase 8 — Monitoring
+## Phase 8 — Monitoring ✅
 
 Scheduler (`packages/monitoring`), scan diffing by finding fingerprint, score
 history, alert dedupe/hysteresis/digest rules, embeddable score badge.
+Unlike Phases 6/7, this phase was **not** scoped down — every optional
+extension raised during planning was built: a full `apps/web` monitoring
+dashboard (not API-only), `cert_expiry`/`scan_failed` alert types beyond
+what diffing alone produces, scheduler quiet hours and start-time jitter,
+and monitored scans running outside the `SCANS_MONTHLY` quota (bounded
+instead by a new `MONITORS` per-plan limit). What shipped:
 
-**Done when:** a deliberately reintroduced misconfiguration on a monitored
-fixture produces exactly one `regressed` alert — not zero, not four.
+**`packages/monitoring`** — new package, real persistence (`MonitorRow`/
+`AlertRow`, unlike `billing`'s deliberate ORM-free design) plus a pure
+`detect_regression()` at its core. The diffing algorithm is more precise
+than the vision doc's `detect_regression(previous: Scan, current: Scan)`
+sketch requires: a two-scan comparison alone cannot tell a genuinely new
+finding from one that regressed after being resolved, so the real
+signature adds `ever_failed_before_previous` — a fingerprint set spanning
+every scan strictly before the prior one, fed by two new
+`vigilo_orchestrator` queries — to make that distinction. `cert_expiry`
+reuses `VG-TLS-004`'s existing persisted `FindingRow` data (a
+special-cased check id) rather than adding a new TLS-evidence read at diff
+time. Score-drop hysteresis is one persisted boolean
+(`monitors.pending_score_drop`) rather than a 3-scan lookback on every
+cycle. `resolved` transitions are computed internally but never become an
+`Alert` — no alert type exists for it in the domain model.
+
+**The architecture problem found and solved during planning**: `packages/
+monitoring` depends on `packages/orchestrator` (for `Scan`/`Finding` history
+queries) — so the reverse can't be true without a cycle. `check_due_
+monitors_job`, `detect_regression_job` and `record_scan_failed_alert_job`
+therefore live in `apps/scanner`, not in `packages/orchestrator/jobs.py`
+alongside the other job bodies; `run_scan_job` enqueues the latter two by
+ARQ's string-based `enqueue_job`, never by Python import, keeping the
+package graph one-directional. An app is always a leaf in that graph and
+is free to depend on both sides.
+
+**`packages/notification`** — new package, `notify()` wraps the already-
+generic `send_transactional_email()` (no new integration-layer function
+needed) and never raises — a delivery failure comes back as a
+`DeliveryResult`, mirroring how `run_scan_job` already handled its own
+report-email failures. Digest-vs-single-alert rendering is the only
+decision it makes, and it's a rendering decision, not a business one: how
+many alerts get batched into one `NotificationEvent` (the vision's
+"more than five events... collapse into a single summary email" rule) is
+`monitoring`'s call, made by how many occurrences it hands over.
+
+**`packages/billing` extension** — `Meter.MONITORS` and `Plan
+.monitors_limit` (Free `0`, Builder `3`, Studio `25`, mirroring each
+plan's `targets_limit`), an incremental extension of Phase 7's existing
+shape. Monitored/scheduled scans do not consume `SCANS_MONTHLY`, per the
+explicit scope decision — `monitors_limit` is the only cost bound on
+monitoring, checked once at monitor-creation time.
+
+**`apps/api`** — `POST`/`GET /v1/targets/{id}/monitors`,
+`POST /v1/monitors/{id}/disable`, `GET /v1/targets/{id}/scores`,
+`GET /v1/targets/{id}/alerts`, and `GET /badge/{target_id}.svg` — public,
+outside the `/v1` prefix, reusing `Target.id` directly rather than adding
+a new `public_id` column (the same "an unguessable UUID is already a de
+facto share link" reasoning Phase 4 established for report PDFs).
+`render_badge()` already existed, fully tested, since Phase 7 — its own
+docstring had explicitly deferred wiring to this phase. `ScanReportResponse`
+gained `target_id` so the web report page can link into the monitoring
+dashboard without a second lookup.
+
+**`apps/web`** — a full monitoring dashboard
+(`app/targets/[targetId]/monitoring/page.tsx`): a monitor toggle with
+cadence/quiet-hours controls, a hand-rolled inline-SVG score-history
+chart (no new charting dependency, matching `render_badge()`'s own
+"no SDK, hand-rolled where small and self-contained" precedent), an alert
+timeline, and a badge-embed snippet. The report page gained a "Manage
+monitoring" owner-only link alongside the existing PDF-export/share-link
+controls. The dashboard requires a real Clerk session to view — the same
+Cloudflare bot-check that blocked full UI verification in Phases 4/6/7
+blocked it here too, disclosed rather than worked around; everything
+short of the actual authenticated render was verified live instead (the
+redirect-to-sign-in gate, the report page's real `target_id` in a live
+API response, and the badge route rendering a correct SVG with the right
+color/grade/cache header against a real seeded scan).
+
+**Done when:** entitlements are enforced from exactly one call site
+(unchanged from Phase 7's framing — this phase reused `vigilo_billing`'s
+existing shape rather than inventing a second one), and a deliberately
+reintroduced misconfiguration on a monitored fixture produces exactly one
+`regressed` alert — not zero, not four. Verified by test, not just code
+review, in `packages/monitoring/tests/test_diff.py::
+test_the_exit_criterion_a_reintroduced_misconfiguration_produces_exactly_one_regressed_alert`:
+a fingerprint fails in scan 1 (first-ever appearance — asserted separately
+to be `new_critical`/`new_high`, never `regressed`), resolves in scan 2,
+fails again in scan 3 — comparing scan 2 → scan 3 yields exactly one event,
+type `regressed`. This test is pure (no Postgres) and runs as its own
+build-blocking CI job, `regression-diff-suite`, matching the `egress-guard-
+suite`/`ownership-verification-suite`/`tier-gating-suite` precedent.
+`uv run pytest -q` (531 tests) and `uv run ruff check .` both green.
 
 ## Phase 9 — Distribution
 

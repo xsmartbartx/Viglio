@@ -5,10 +5,10 @@
 The authoritative, column-level spec for Vigilo's persisted schema, owned by
 `packages/persistence` (the shared SQLAlchemy `Base`/engine/session) plus
 each table's owning module (`packages/identity`, `packages/project`,
-`packages/orchestrator`, `packages/security`). Source of truth for the
-schema itself is the Alembic migrations under
+`packages/orchestrator`, `packages/security`, `packages/monitoring`).
+Source of truth for the schema itself is the Alembic migrations under
 `packages/persistence/migrations/versions/`; this document explains what
-those migrations mean and why, and calls out every place Phase 3's actual
+those migrations mean and why, and calls out every place the actual
 implementation deviates from the entity table in
 `docs/prooflight-vision-and-architecture.md` §6.1.
 
@@ -19,9 +19,11 @@ model's own entity table, same pattern as `scans.bundle_id`: the domain
 model doesn't name a remediation cache, but
 `docs/adr/ADR-0004-llm-boundary.md` and the Prooflight doc's own risk
 register ("caching by fingerprint") require one. Phase 7 adds
-`subscriptions`. `MonitorSchedule`, `Alert`, `ApiKey` and `ScoreSnapshot`
-and a standalone `Evidence` table remain deferred to the phases that
-actually need them (Phase 8 monitoring, Phase 9 public API).
+`subscriptions`. Phase 8 adds `monitors`/`alerts` (named `MonitorSchedule`/
+`Alert` in the domain model) but does *not* add a `ScoreSnapshot` table —
+score history reads `scans` directly instead (see "Deferred entities"
+below). `ApiKey` and a standalone `Evidence` table remain deferred to
+Phase 9.
 
 ---
 
@@ -239,6 +241,37 @@ scoring — never inline in `run_scan_job`) is the only writer; report
 rendering (`GET /v1/scans/{id}/report`, `GET /v1/share/{token}`) only ever
 reads, never triggers generation itself.
 
+## monitors (`packages/monitoring`, added Phase 8)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID, PK | |
+| `target_id` | UUID, FK `targets.id`, unique, indexed | One monitor per target — `create_monitor()` is idempotent-by-target, matching `create_target()`'s idempotent-by-origin precedent. |
+| `account_id` | UUID, FK `accounts.id`, indexed | **Deviation, deliberate**: denormalized. `Target` has no direct `account_id` (only via `project_id -> projects.account_id`); this avoids a two-hop join on every `due_monitors()`/entitlement-count query, matching `scans.target_id` existing alongside `scan_jobs.target_id`. |
+| `cadence_hours` | integer | 168 for a `weekly`-only plan (Builder); 1-168 for a `daily+custom` plan (Studio). Validated against `vigilo_billing.entitlements().monitoring_frequency` at creation time, not stored as a separate string. |
+| `enabled` | boolean | Set `false` by `disable_monitor()` — either the owner turning monitoring off, or `check_due_monitors_job` doing so automatically when a scheduled run's `resolve_authorization()` call denies outright (opted out/denylisted since creation). |
+| `next_run_at` | timestamptz, indexed | `due_monitors(now)` filters on this. Recomputed by `compute_next_run_at()` every cycle — cadence plus jitter (±15 min, to avoid a recognizable scan signature) plus a quiet-hours push-forward. |
+| `quiet_start_utc` | integer, nullable | Hour 0-23. Both null = no quiet hours. |
+| `quiet_end_utc` | integer, nullable | |
+| `pending_score_drop` | boolean | Hysteresis state for `score_drop` alerts (vision §10.3: "requires the drop to persist across two consecutive scans unless a critical is involved") — one bit of persisted state instead of a 3-scan lookback on every diff. |
+| `created_at` | timestamptz | |
+
+## alerts (`packages/monitoring`, added Phase 8)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID, PK | |
+| `monitor_id` | UUID, FK `monitors.id`, indexed | |
+| `target_id` | UUID, FK `targets.id`, indexed | Denormalized alongside `monitor_id`, same "redundant FK for a different query shape" precedent as `monitors.account_id` above — alert history stays queryable even if the owning monitor is later deleted. |
+| `scan_id` | UUID, FK `scans.id`, indexed, **nullable** | Null for `scan_failed` — that alert fires when the job never reached `record_scan_result()`, so there is no `Scan` row to reference. Every other alert type always has one. |
+| `type` | varchar(32) | `new_critical` \| `new_high` \| `regressed` \| `cert_expiry` \| `score_drop` \| `scan_failed`. No `resolved` — no alert type exists for it; see `docs/modules.md` §9. |
+| `severity` | varchar(16), nullable | Null for `score_drop`/`scan_failed` (not per-finding). |
+| `fingerprint` | varchar(128), nullable | Null for `score_drop`/`scan_failed`. |
+| `dedupe_key` | varchar(200) | `f"{target_id}:{fingerprint or type}:{type}"` — kept for auditability, matching the vision's `(target_id, fingerprint, event_type)` framing. **Not** queried to suppress re-sends; dedup is structural — `detect_regression()` only ever emits an event on a state *transition*, so a fingerprint that stays failed across many scans produces no repeat event to begin with. |
+| `sent_at` | timestamptz, nullable | Null until `notify()` actually delivers; set after the fact so a delivery failure doesn't hide that the alert was recorded. |
+| `channel` | varchar(16) | `"email"` — the only channel this phase implements. |
+| `created_at` | timestamptz | |
+
 ## audit_events (`packages/security`)
 
 | Column | Type | Notes |
@@ -282,7 +315,11 @@ Not yet modeled (see the phase that adds them): multi-`Project` UI/API
 (every account still gets exactly one default project, no phase commits to
 this yet), `Evidence` as its own relational table (no phase commits to this
 yet — object storage has sufficed so far), `CheckDefinition` (the registry
-in code is the source of truth; no DB mirror exists), `ScoreSnapshot`
-(Phase 8's score-history charts), `MonitorSchedule`/`Alert` (Phase 8),
-`ApiKey` (Phase 9's public API). `Subscription` is no longer deferred — see
-`## subscriptions` above (Phase 7).
+in code is the source of truth; no DB mirror exists), `ApiKey` (Phase 9's
+public API). `Subscription` (Phase 7) and `MonitorSchedule`/`Alert`
+(Phase 8, named `monitors`/`alerts` — see those sections above) are no
+longer deferred. `ScoreSnapshot` never got built as its own table either —
+Phase 8's score-history chart reads `scans` directly
+(`list_scans_for_target()`, `docs/modules.md` §8), which already carries
+`score`/`grade`/`created_at` per target; a dedicated snapshot table would
+have duplicated it for no benefit.

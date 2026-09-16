@@ -166,6 +166,25 @@ jobs:
       - run: uv run alembic -c packages/persistence/alembic.ini upgrade head
       - run: uv run pytest packages/orchestrator/tests/test_tier_gating.py -v
 
+  # Phase 8's exit criterion, verbatim: "a deliberately reintroduced
+  # misconfiguration on a monitored fixture produces exactly one
+  # `regressed` alert — not zero, not four." `detect_regression()` is a
+  # pure function (packages/monitoring/src/vigilo_monitoring/diff.py) —
+  # no Postgres needed, unlike tier-gating-suite — so this proves the
+  # classification itself is correct in isolation from the DB-backed
+  # wiring the regular `test` job already covers.
+  regression-diff-suite:
+    name: Regression diff suite (scan-diff classification — build blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.11
+      - run: uv sync --all-packages
+      - run: uv run pytest packages/monitoring/tests/test_diff.py -v
+
   web:
     name: Web app (lint + build)
     runs-on: ubuntu-latest
