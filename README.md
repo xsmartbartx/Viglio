@@ -78,8 +78,10 @@ packages/
   ├─ checks/                          # pure check functions + manifests
   ├─ scoring/                         # deterministic score model
   ├─ orchestrator/                    # scan lifecycle: state machine + ARQ jobs
-  ├─ integrations/                    # Postmark (email), MinIO/S3 (object storage)
+  ├─ integrations/                    # Postmark (email), MinIO/S3 (object storage),
+                                       #   Anthropic (LLM remediation), Paddle (billing)
   ├─ reporting/                       # HTML/PDF/badge rendering (Phase 4)
+  ├─ billing/                         # entitlements + quota decisions, pure (Phase 7)
   └─ mcp/                             # MCP server (Phase 9)
 docs/
   ├─ vision.md
@@ -152,17 +154,24 @@ See `docs/security.md` and ADR 0003.
 ## Local development
 
 Requires [`uv`](https://docs.astral.sh/uv/), Docker, and Docker Compose. Real
-Clerk/Postmark/Anthropic accounts are only needed to exercise auth/email/
-LLM-backed remediation end to end — everything else runs locally with no
-third-party accounts, and a scan completes with template-based remediation
-text if `ANTHROPIC_API_KEY` is unset (a hard availability requirement, not
-a fallback of convenience — see `docs/adr/ADR-0004-llm-boundary.md`).
+Clerk/Postmark/Anthropic/Paddle accounts are only needed to exercise
+auth/email/LLM-backed remediation/live billing end to end — everything else
+runs locally with no third-party accounts, and a scan completes with
+template-based remediation text if `ANTHROPIC_API_KEY` is unset (a hard
+availability requirement, not a fallback of convenience — see
+`docs/adr/ADR-0004-llm-boundary.md`). Billing (`PADDLE_*`) is stubbed by
+design this phase — see Status below — so leaving it unset is the normal
+case, not a degraded one; `POST /v1/billing/checkout`/`webhook` raise a
+`BILLING_PROVIDER_ERROR` (500) if called without it configured, same
+"works without it, fails loudly if called anyway" pattern as the other
+optional providers.
 
 ```bash
 cp .env.example .env            # fill CLERK_SECRET_KEY/CLERK_JWKS_URL/POSTMARK_SERVER_TOKEN/
-                                 # ANTHROPIC_API_KEY to exercise auth/email/LLM remediation;
-                                 # WEB_APP_URL defaults to http://localhost:3000 (apps/web
-                                 # below) — the rest works with no third-party accounts at all
+                                 # ANTHROPIC_API_KEY/PADDLE_* to exercise auth/email/LLM
+                                 # remediation/billing; WEB_APP_URL defaults to
+                                 # http://localhost:3000 (apps/web below) — the rest works
+                                 # with no third-party accounts at all
 uv sync --all-packages          # installs every package/app into one .venv
 uv run playwright install chromium   # one-time: the PDF-export render target
 docker compose up -d            # postgres, redis, minio — bound to localhost only
@@ -212,6 +221,31 @@ Stop the local infra with `docker compose down` when done.
 ---
 
 ## Status
+
+**Phase 7 (Monetisation, scoped) complete.** `Account.plan_id` is real now:
+three static plans (Free/Builder/Studio) enforced from one place
+(`packages/billing`'s `entitlements()`/`consume()`, pure functions over
+primitives, matching the precedent `resolve_authorization`/`build_report`
+already set) against what exists today — target count, scans/month,
+passive-vs-active tier, share-link export. A new, provider-agnostic
+checkout/webhook adapter (`packages/integrations`'s Paddle client +
+`apps/api`'s `/v1/billing` routes) is stubbed by design — no real Paddle
+account, verified against a locally-computed, validly-signed mock webhook,
+same DI-seam pattern as Postmark/Clerk/Anthropic. A real, previously-latent
+quota bypass surfaced and got fixed in the same phase: scan submission for
+a returning account was creating new `Target` rows with no quota check at
+all, independent of `POST /v1/targets`' own check — both paths now enforce
+the same limit. Real, clearly-labeled draft legal pages (Privacy/Terms/
+Cookies/AUP, with a persistent "not reviewed by a lawyer" banner) ship with
+a new site footer, dogfooding Vigilo's own passive `LEG` checks — verified
+by running the actual `Check.evaluate()` functions against the live
+homepage HTML. See `docs/build-roadmap.md`'s Phase 7 entry for the full
+account: the live, end-to-end proof that a webhook-driven plan upgrade
+immediately unlocks active tier for an otherwise-identical request, the
+Phase 6 regression this phase's own plan gate would have introduced (and
+its fix), and what's deliberately left unenforced (monitoring/API-key/
+repo-connector limits exist in `Entitlements`' shape for Phase 8/9 to read,
+not yet enforced — nothing exists yet to restrict).
 
 **Phase 6 (Active tier, scoped) complete.** Every check now runs behind a
 real, two-layer tier gate: an unverified target's scan never even makes
@@ -298,9 +332,9 @@ process that talks to a target, enforced by a static import-boundary test.
 storage). Both Phase 3 exit criteria run end to end locally against real
 Postgres/Redis/MinIO.
 
-Still ahead: LLM-authored report narrative, and the active-tier checks that
-verified ownership already unlocks but the registry doesn't populate yet —
-see `docs/build-roadmap.md` for what's next. All documents in `/docs` are
+Still ahead: monitoring (scheduled re-scans, score history, alerts) and
+distribution (public API, CI integrations, badge) — see
+`docs/build-roadmap.md` for what's next. All documents in `/docs` are
 authoritative for implementation and must be updated by the responsible
 agent whenever behaviour changes.
 

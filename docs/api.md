@@ -41,9 +41,27 @@ decision is written to `audit_events` and **committed** → only then is
 ADR-0003's binding requirement ("written to the audit trail before the scan
 is queued, not after"), not a stylistic choice.
 
+**Quota enforcement (Phase 7, returning submitters only).** A brand-new
+submitter (no existing account for this email) takes the unchanged,
+no-lookup path above — zero prior usage of anything to exceed. For a
+*returning* submitter, two `vigilo_billing` checks run after
+`resolve_authorization()` allows the request and before anything is
+created: the target's origin, if new, is checked against the account's
+plan's `TARGETS` limit (closing a real gap — this used to auto-create a
+`Target` with no quota check at all, independent of `POST /v1/targets`'
+own check below); then the account's rolling-30-day scan count is checked
+against the plan's `SCANS_MONTHLY` limit. Either denial is audited
+(`action="quota_exceeded"`) and committed before the error response, same
+discipline as the `scan_denied` branch. Separately, `requested_tier:
+"active"` for a returning account now also requires
+`entitlements(account.plan_id).active_tier_allowed` — Free does not
+include active tier, so a fully verified ownership proof alone downgrades
+to `passive` on Free, same "downgrade, not a rejection" ADR-0003 pattern
+as an unverified proof.
+
 **Errors**: `422` malformed URL/email, `403` denied (denylisted, opted out,
 or rate-limited — see `body.detail`/`context` for `resolve_authorization()`'s
-reason).
+reason), `429` `QUOTA_EXCEEDED` (returning submitters only, see above).
 
 ## `GET /v1/scans/{scan_job_id}` — poll for a result
 
@@ -79,8 +97,22 @@ default `Project`.
 **Response `200`**
 
 ```json
-{ "account_id": "...", "email": "owner@example.com", "status": "active", "created_at": "..." }
+{
+  "account_id": "...", "email": "owner@example.com", "status": "active", "created_at": "...",
+  "entitlements": {
+    "plan_id": "free", "targets_limit": 1, "scans_per_month_limit": 3,
+    "active_tier_allowed": false, "share_links_allowed": false,
+    "monitoring_frequency": null, "api_keys_limit": null, "repo_connectors_limit": null
+  }
+}
 ```
+
+`entitlements` (Phase 7) is `vigilo_billing.entitlements(account.plan_id)`,
+computed fresh on every call — nothing here is cached or stored
+separately from `accounts.plan_id`. `monitoring_frequency`/
+`api_keys_limit`/`repo_connectors_limit` are Phase 8/9-shaped fields with
+no enforcement behind them yet (no monitor, API key, or repo connector
+exists to restrict).
 
 **Errors**: `401` missing/invalid/expired token, or a token whose claims
 have no email and no prior linked account.
@@ -91,6 +123,14 @@ Auth required.
 
 **Request**: `{ "origin": "https://example.com" }` → **Response `201`**: a
 `TargetResponse` (see below).
+
+**Quota enforcement (Phase 7).** If `origin` isn't already a tracked
+target for the caller's project, the account's plan `TARGETS` limit is
+checked first (re-adding an already-known origin is idempotent and never
+counts against quota). `POST /v1/scans` enforces the identical check for
+the origin it auto-creates a target for — see that endpoint's note above.
+
+**Errors**: `422` malformed origin, `429` `QUOTA_EXCEEDED`.
 
 ## `GET /v1/targets/{target_id}` — exit criterion (b)'s poll target
 
@@ -221,9 +261,11 @@ doesn't distinguish "doesn't exist" from "not ready" at this endpoint.
 
 ## `POST /v1/scans/{scan_job_id}/share-links` — create a share link
 
-Auth required, caller must own the target. Finds-or-creates the
-`format="html"` `Report` row first (its content is never actually stored —
-see `docs/data-model.md`).
+Auth required, caller must own the target. Requires
+`entitlements(account.plan_id).share_links_allowed` (Phase 7) — Free does
+not include share links; checked before the `format="html"` `Report` row
+is found-or-created (its content is never actually stored — see
+`docs/data-model.md`).
 
 **Request**: `{ "expires_in_days": 30 }` (optional; omit or `null` for no expiry)
 
@@ -235,6 +277,9 @@ see `docs/data-model.md`).
 
 `token` is returned once, at creation time — only its SHA-256 hash is
 persisted (`share_links.token_hash`).
+
+**Errors**: `404` scan not owned/found, `409` report not ready, `429`
+`QUOTA_EXCEEDED` (plan doesn't include share links).
 
 ## `GET /v1/scans/{scan_job_id}/share-links` — list share links
 
@@ -263,6 +308,46 @@ resolution.
 
 ---
 
+## `POST /v1/billing/checkout` — start a Paddle checkout (Phase 7)
+
+Auth required.
+
+**Request**: `{ "plan_id": "builder" }` → **Response `200`**:
+`{ "checkout_url": "https://checkout.paddle.com/checkout?..." }` — a
+templated hosted-checkout URL (`vigilo_integrations.billing.create_checkout_url()`),
+not a server-to-server API call. Completing checkout happens entirely on
+Paddle's hosted page; this account's plan only actually changes once the
+resulting `subscription.created` webhook arrives below.
+
+**Errors**: `500` `BILLING_PROVIDER_ERROR` if Paddle isn't configured
+(`PADDLE_VENDOR_ID`/`PADDLE_PRICE_ID_*` unset) or `plan_id` has no
+configured price (e.g. `"free"`).
+
+## `POST /v1/billing/webhook` — Paddle subscription events (Phase 7)
+
+**No auth** — deliberately public. Paddle authenticates itself via the
+`Paddle-Signature` header (HMAC-SHA256 over the raw request body), verified
+before the body is parsed as JSON at all. See `docs/security.md` §7 for the
+full attack-surface writeup, including the disclosed replay-protection gap.
+
+**Behavior.** `verify_webhook_signature()` (`401` on failure) →
+`parse_webhook_event()` → `interpret_webhook_event()`, which recognizes
+`subscription.created`/`updated`/`canceled` and raises
+`UnrecognizedWebhookEvent` for anything else or a malformed payload of a
+recognized type — either case returns `200`/no-op rather than an error, to
+avoid triggering Paddle's retry logic for events this integration doesn't
+act on. A recognized event looks up the account by
+`event.account_email` (`200`/no-op if unknown) and applies it via
+`vigilo_identity.upsert_subscription()`, which cascades `accounts.plan_id`
+(to the new plan if `status == "active"`, to `"free"` on `canceled`) and
+writes an `audit_events` row (`action="subscription_updated"`).
+
+**Response `200`**: `{ "status": "applied" }` or `{ "status": "ignored" }`.
+
+**Errors**: `401` invalid/missing signature.
+
+---
+
 ## Error-code → HTTP status mapping (`vigilo_api/errors.py`)
 
 | `ErrorCode` | Status |
@@ -273,14 +358,16 @@ resolution.
 | `RATE_LIMIT_EXCEEDED`, `QUOTA_EXCEEDED` | 429 |
 | `OWNERSHIP_PROOF_EXPIRED`, `SHARE_LINK_EXPIRED`, `SHARE_LINK_REVOKED` | 410 |
 | `INVALID_STATE_TRANSITION`, `REPORT_NOT_READY` | 409 |
-| `PDF_RENDER_FAILED` and anything else | 500 |
+| `PDF_RENDER_FAILED`, `BILLING_PROVIDER_ERROR`, and anything else | 500 |
 
 ---
 
 ## Not yet built (later phases)
 
 Multi-project management endpoints (every account gets exactly one default
-project today — see `docs/data-model.md`), webhooks and API keys (Phase 9),
-billing/entitlement endpoints (Phase 7), the public REST API's
+project today — see `docs/data-model.md`), outbound webhooks and API keys
+for third-party integrations (Phase 9), the public REST API's
 rate-limited, key-authenticated surface distinct from this
-session-authenticated one (Phase 9), the MCP server (Phase 9).
+session-authenticated one (Phase 9), the MCP server (Phase 9). Billing
+endpoints shipped in Phase 7 (above) — stubbed against Paddle, no real
+account.

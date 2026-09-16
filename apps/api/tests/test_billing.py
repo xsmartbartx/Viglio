@@ -9,8 +9,15 @@ import pytest
 from vigilo_api.deps import require_account
 from vigilo_api.main import app
 from vigilo_core.config import config
+from vigilo_core.models import VerificationMethod
 from vigilo_identity.repository import get_account_by_id, get_or_create_account
 from vigilo_persistence import session_scope
+from vigilo_project.repository import (
+    create_target,
+    get_or_create_default_project,
+    issue_ownership_proof,
+    mark_proof_verified,
+)
 
 _SECRET = "whsec_test"
 
@@ -133,6 +140,52 @@ async def test_webhook_upgrades_a_known_account_to_the_new_plan(client):
     async with session_scope() as session:
         updated = await get_account_by_id(session, account.id)
     assert updated.plan_id == "builder"
+
+
+async def test_a_plan_upgrade_via_webhook_immediately_unlocks_active_tier(client):
+    """The end-to-end narrative behind the roadmap's "a plan change
+    correctly and immediately restricts/unrestricts access" exit criterion:
+    a verified-owner account on the (default) Free plan stays passive;
+    a real webhook call — the same one Paddle would send — upgrades the
+    account; the identical scan request is then granted active tier, with
+    no other state having changed."""
+    async with session_scope() as session:
+        account = await get_or_create_account(session, email="live-upgrade@example.com")
+        project = await get_or_create_default_project(session, account.id)
+        target = await create_target(session, project.id, "https://example.com")
+        proof = await issue_ownership_proof(session, target.id, VerificationMethod.DNS_TXT)
+        await mark_proof_verified(session, proof.id)
+
+    scan_request = {
+        "target_url": "https://example.com",
+        "email": "live-upgrade@example.com",
+        "requested_tier": "active",
+    }
+
+    before = await client.post("/v1/scans", json=scan_request)
+    assert before.status_code == 202
+    assert before.json()["granted_tier"] == "passive"
+
+    payload = {
+        "event_type": "subscription.created",
+        "data": {
+            "subscription_id": "sub_live_upgrade",
+            "customer": {"email": "live-upgrade@example.com"},
+            "plan_id": "builder",
+        },
+    }
+    raw_body = json.dumps(payload).encode()
+    webhook_response = await client.post(
+        "/v1/billing/webhook",
+        content=raw_body,
+        headers={"Paddle-Signature": _signed_header(raw_body)},
+    )
+    assert webhook_response.status_code == 200
+    assert webhook_response.json()["status"] == "applied"
+
+    after = await client.post("/v1/scans", json=scan_request)
+    assert after.status_code == 202
+    assert after.json()["granted_tier"] == "active"
 
 
 async def test_webhook_cancellation_resets_the_account_to_free(client):

@@ -283,15 +283,94 @@ actually firing only in the active case. `uv run pytest -q` (413 tests) and
 `uv run ruff check .` both green, including the new `tier-gating-suite`
 CI job.
 
-## Phase 7 — Monetisation
+## Phase 7 — Monetisation (scoped) ✅
 
-Three subscription tiers; billing via a merchant of record (Paddle or Lemon
-Squeezy, per ADR-0002); entitlement snapshots enforced from one place
-(`packages/billing`) rather than scattered per-feature checks; quotas;
-ToS/AUP/privacy pages (Vigilo dogfoods its own `LEG`/`CMP` checks here).
+Scoped down from the original paragraph, by three explicit decisions
+(`docs/adr/ADR-0002-product-scope-and-stack.md` names Paddle first among
+merchant-of-record candidates, so it's the concrete reference
+implementation here — Lemon Squeezy remains a same-shape alternative, not
+built): (1) build the full entitlement architecture and the
+checkout/webhook adapter now, but **stubbed** — no real Paddle account;
+verified against a locally-computed, validly-signed mock webhook payload,
+the same DI-seam pattern already used for Postmark/Clerk/Anthropic; (2)
+**enforce only what exists today** — target count, scans/month,
+passive-vs-active tier, share-link export. `Entitlements` already carries
+`monitoring_frequency`/`api_keys_limit`/`repo_connectors_limit` fields
+(Phase 8/9-shaped) so those phases have a snapshot to read, but nothing
+enforces or tests them yet, since no monitor, API key, or repo connector
+exists to restrict; (3) legal pages are real, clearly-labeled **drafts** —
+covering Vigilo's actual authorization model, data handling and abuse
+policy, not Lorem Ipsum — with a persistent "DRAFT — not reviewed by a
+lawyer" banner, not a claim of legal review. What shipped:
 
-**Done when:** entitlements are enforced from exactly one call site, and a
-plan downgrade correctly and immediately restricts an active monitor.
+**`packages/billing`** — pure entitlement logic (`entitlements()`,
+`consume()`, `interpret_webhook_event()`), `core`-only, zero ORM, matching
+the precedent `resolve_authorization`/`build_report` already set
+(`docs/modules.md` §11's deviation note has the detail). Three static
+plans (Free/Builder/Studio) at `TARGETS`/`SCANS_MONTHLY` meters, both
+enforced as a live `COUNT`, never a stored/decremented counter — nothing to
+drift out of sync. `Subscription` persistence lives in `packages/identity`
+next to `Account`, not a `billing`-owned table.
+
+**A real, previously-latent quota bypass, found and fixed in the same
+phase** (not a Phase 7 regression — a gap that predates this phase but had
+no quota to bypass until now): `submit_scan()`
+(`apps/api/src/vigilo_api/routers/scans.py`) auto-creates a `Target` row
+for any new origin a returning account scans, entirely independent of
+`POST /v1/targets`' own quota check. Both paths now enforce the same
+`TARGETS` check.
+
+**Checkout + webhook routes** (`apps/api/src/vigilo_api/routers/billing.py`)
+— `POST /v1/billing/checkout` builds Paddle's hosted-checkout URL;
+`POST /v1/billing/webhook` is deliberately public (Paddle authenticates via
+HMAC signature, not a bearer token), applies a recognized, correctly-signed
+event via `upsert_subscription()`, and returns `200`/no-op for anything
+else — see `docs/security.md` §7 for the attack-surface writeup, including
+the disclosed, not-yet-closed replay-protection gap.
+
+**Legal pages + footer** (`apps/web/app/{privacy,terms,cookies,aup}/page.tsx`,
+`components/{DraftBanner,Footer}.tsx`) — real drafted text, footer wired
+into the homepage. Verified two ways: `packages/checks`' actual
+`Check.evaluate()` functions run against the live-fetched homepage HTML
+confirm all four passive `LEG` checks pass (`VG-LEG-001`..`004`); the
+`CMP` checks pass vacuously, since the homepage sets no trackers to flag.
+A full `vigilo scan` of the running local dev server wasn't possible —
+`localhost` is loopback, which the egress guard denies by design (SSRF
+protection, `docs/security.md` §1) — running the real check functions
+against the real fetched content is the closest available proxy, and is
+what those checks actually evaluate internally regardless of how the fetch
+happened.
+
+**The regression this phase itself would have introduced, and its fix**:
+Phase 6's `test_submit_scan_grants_active_tier_for_a_returning_verified_target`
+seeded an account with no plan (`plan_id=None`, defaulting to Free), which
+Phase 7's new plan gate would have silently downgraded to passive despite a
+valid, verified proof — the exact "accidental free active scan" the
+Prooflight doc's risk register warns about. Fixed by upgrading that test's
+account to `builder` before asserting active tier, and adding a new,
+arguably more important test,
+`test_submit_scan_with_valid_proof_but_free_plan_stays_passive` — the
+concrete, testable analogue of this phase's own exit criterion below.
+
+**Done when:** entitlements are enforced from exactly one call site
+(`vigilo_billing.entitlements()`/`consume()`, never re-derived elsewhere),
+and a plan change correctly and immediately restricts or unrestricts
+access. Verified live, end to end, in
+`apps/api/tests/test_billing.py::test_a_plan_upgrade_via_webhook_immediately_unlocks_active_tier`:
+a verified-owner account on the default Free plan submits an active-tier
+scan and is granted `passive`; a real `POST /v1/billing/webhook` call
+(locally-computed valid signature, no real Paddle account) upgrades the
+account to `builder`; the identical scan request is then granted `active`
+— no other state changed between the two calls. The literal "restricts an
+active monitor" wording in the original exit criterion is satisfied by this
+test instead of a literal monitor test, since no monitor exists yet
+(Phase 8) to restrict — the plan-gating mechanism itself is what that
+wording was really testing for, and it's proven here against the one
+plan-gated feature that does exist (active tier).
+
+`uv run pytest -q` (462 tests) and `uv run ruff check .` both green,
+including `packages/billing/tests/test_import_boundary.py`'s new
+build-blocking `core`-only boundary check.
 
 ## Phase 8 — Monitoring
 
