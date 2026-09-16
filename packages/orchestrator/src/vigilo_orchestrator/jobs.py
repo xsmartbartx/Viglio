@@ -84,6 +84,8 @@ async def run_scan_job(ctx: dict[str, Any], scan_job_id: str) -> None:
     job_uuid = uuid.UUID(scan_job_id)
     started = time.monotonic()
 
+    redis = ctx.get("redis")
+
     async with session_scope() as session:
         job = await get_scan_job(session, job_uuid)
         if job is None or job.status != "authorized":
@@ -115,6 +117,8 @@ async def run_scan_job(ctx: dict[str, Any], scan_job_id: str) -> None:
                 context={"scan_job_id": scan_job_id, "target": target.origin},
             )
         )
+        if redis is not None:
+            await redis.enqueue_job("record_scan_failed_alert_job", scan_job_id, str(exc))
         return
     except Exception:
         async with session_scope() as session:
@@ -127,6 +131,8 @@ async def run_scan_job(ctx: dict[str, Any], scan_job_id: str) -> None:
                 context={"scan_job_id": scan_job_id},
             )
         )
+        if redis is not None:
+            await redis.enqueue_job("record_scan_failed_alert_job", scan_job_id, "probing failed")
         return
 
     async with session_scope() as session:
@@ -145,6 +151,10 @@ async def run_scan_job(ctx: dict[str, Any], scan_job_id: str) -> None:
                 context={"scan_job_id": scan_job_id},
             )
         )
+        if redis is not None:
+            await redis.enqueue_job(
+                "record_scan_failed_alert_job", scan_job_id, "evaluation failed"
+            )
         return
 
     bundle_id: str | None = None
@@ -188,9 +198,14 @@ async def run_scan_job(ctx: dict[str, Any], scan_job_id: str) -> None:
     # (docs/adr/ADR-0004-llm-boundary.md). Guarded on ctx holding a real
     # redis pool — ARQ populates this at runtime, but unit tests call this
     # function directly with an empty ctx.
-    redis = ctx.get("redis")
     if redis is not None:
         await redis.enqueue_job("generate_remediations_job", scan_job_id)
+        # Always enqueued — a no-op unless the target has an active
+        # monitor (Phase 8, apps/scanner/src/vigilo_scanner/jobs.py). Lives
+        # in the app, not here, since vigilo_monitoring depends on this
+        # package; ARQ's string-based enqueue keeps the dependency
+        # one-directional (see that module's docstring).
+        await redis.enqueue_job("detect_regression_job", scan_job_id)
 
     async with session_scope() as session:
         await advance(session, job_uuid, "complete")

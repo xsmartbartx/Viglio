@@ -100,6 +100,39 @@ async def test_run_scan_job_marks_unreachable_when_egress_is_denied(db_schema, m
     assert final is not None and final.status == "unreachable"
 
 
+async def test_run_scan_job_enqueues_a_scan_failed_alert_when_unreachable(db_schema, monkeypatch):
+    job, _target = await _make_authorized_job()
+
+    async def fake_run_probes(url, tier=None, **kwargs):
+        raise EgressDenied("simulated deny", host="example.com")
+
+    monkeypatch.setattr(jobs, "run_probes", fake_run_probes)
+
+    redis = _FakeRedis()
+    await jobs.run_scan_job({"redis": redis}, str(job.id))
+
+    assert redis.enqueued
+    name, args = redis.enqueued[0]
+    assert name == "record_scan_failed_alert_job"
+    assert args[0] == str(job.id)
+
+
+async def test_run_scan_job_enqueues_a_scan_failed_alert_when_probing_raises(
+    db_schema, monkeypatch
+):
+    job, _target = await _make_authorized_job()
+
+    async def failing_run_probes(url, tier=None, **kwargs):
+        raise RuntimeError("simulated probing crash")
+
+    monkeypatch.setattr(jobs, "run_probes", failing_run_probes)
+
+    redis = _FakeRedis()
+    await jobs.run_scan_job({"redis": redis}, str(job.id))
+
+    assert redis.enqueued == [("record_scan_failed_alert_job", (str(job.id), "probing failed"))]
+
+
 async def test_run_scan_job_completes_even_when_email_delivery_fails(db_schema, monkeypatch):
     job, _target = await _make_authorized_job()
 
@@ -127,7 +160,7 @@ class _FakeRedis:
         self.enqueued.append((function, args))
 
 
-async def test_run_scan_job_enqueues_remediation_generation_when_ctx_has_redis(
+async def test_run_scan_job_enqueues_remediation_generation_and_regression_detection_when_ctx_has_redis(
     db_schema, monkeypatch
 ):
     job, _target = await _make_authorized_job()
@@ -144,7 +177,10 @@ async def test_run_scan_job_enqueues_remediation_generation_when_ctx_has_redis(
     redis = _FakeRedis()
     await jobs.run_scan_job({"redis": redis}, str(job.id))
 
-    assert redis.enqueued == [("generate_remediations_job", (str(job.id),))]
+    assert redis.enqueued == [
+        ("generate_remediations_job", (str(job.id),)),
+        ("detect_regression_job", (str(job.id),)),
+    ]
 
 
 async def test_run_scan_job_is_a_noop_for_a_job_not_yet_authorized(db_schema):
