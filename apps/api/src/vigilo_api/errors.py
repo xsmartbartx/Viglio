@@ -31,6 +31,7 @@ _STATUS_BY_CODE: dict[ErrorCode, int] = {
     ErrorCode.SHARE_LINK_EXPIRED: 410,
     ErrorCode.SHARE_LINK_REVOKED: 410,
     ErrorCode.PDF_RENDER_FAILED: 500,
+    ErrorCode.BILLING_PROVIDER_ERROR: 500,
 }
 
 
