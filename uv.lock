@@ -12,6 +12,7 @@ members = [
     "vigilo-identity",
     "vigilo-integrations",
     "vigilo-monitoring",
+    "vigilo-notification",
     "vigilo-orchestrator",
     "vigilo-persistence",
     "vigilo-probes",
@@ -1428,6 +1429,29 @@ requires-dist = [
     { name = "vigilo-core", editable = "packages/core" },
     { name = "vigilo-orchestrator", editable = "packages/orchestrator" },
     { name = "vigilo-persistence", editable = "packages/persistence" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest-asyncio", specifier = ">=0.24" }]
+
+[[package]]
+name = "vigilo-notification"
+version = "0.1.0"
+source = { editable = "packages/notification" }
+dependencies = [
+    { name = "vigilo-core" },
+    { name = "vigilo-integrations" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vigilo-core", editable = "packages/core" },
+    { name = "vigilo-integrations", editable = "packages/integrations" },
 ]
 
 [package.metadata.requires-dev]
