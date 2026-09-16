@@ -25,8 +25,8 @@ export default function AcceptableUsePolicyPage() {
           <ul className="list-disc pl-6 space-y-1">
             <li>
               Passive-tier scanning is limited to requests an ordinary
-              visitor or search-engine crawler would make — you don't need
-              the target owner's permission to run one.
+              visitor or search-engine crawler would make — you don&apos;t
+              need the target owner&apos;s permission to run one.
             </li>
             <li>
               Active-tier scanning (endpoint enumeration and deeper
@@ -58,7 +58,7 @@ export default function AcceptableUsePolicyPage() {
         <section className="space-y-2">
           <h2 className="text-lg font-semibold">For site owners: opting out</h2>
           <p>
-            If you own a site and don't want it scanned by {brand.name} —
+            If you own a site and don&apos;t want it scanned by {brand.name} —
             by anyone, at any tier — email{" "}
             <a href={`mailto:${brand.abuseEmail}`} className="underline">
               {brand.abuseEmail}

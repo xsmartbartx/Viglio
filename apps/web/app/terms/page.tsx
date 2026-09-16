@@ -44,7 +44,7 @@ export default function TermsOfServicePage() {
           <p>
             You may only request active-tier scanning of sites you own or
             are authorized to test. Passive-tier scanning of a third-party
-            site does not require the site owner's consent, but a site
+            site does not require the site owner&apos;s consent, but a site
             owner may have their site excluded from scanning at any time —
             see our{" "}
             <Link href="/aup" className="underline">
@@ -62,7 +62,7 @@ export default function TermsOfServicePage() {
             Paid plans are billed by our merchant-of-record payment
             provider on a recurring basis until canceled. Downgrading or
             canceling takes effect at the end of the current billing
-            period; your account's entitlements are updated automatically
+            period; your account&apos;s entitlements are updated automatically
             once the change is confirmed by our billing provider.
           </p>
         </section>
@@ -70,7 +70,7 @@ export default function TermsOfServicePage() {
         <section className="space-y-2">
           <h2 className="text-lg font-semibold">No warranty</h2>
           <p>
-            {brand.name} is provided on an "as is" basis. A passing report
+            {brand.name} is provided on an &quot;as is&quot; basis. A passing report
             is not a guarantee that a site is free of security or
             compliance issues — our checks detect a defined set of known
             patterns and are one input into your own judgment, not a

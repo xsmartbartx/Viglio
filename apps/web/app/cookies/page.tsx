@@ -47,7 +47,7 @@ export default function CookiePolicyPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-lg font-semibold">What we don't use</h2>
+          <h2 className="text-lg font-semibold">What we don&apos;t use</h2>
           <p>
             We do not currently set any analytics, advertising, or
             third-party tracking cookies. If that changes, this page will
