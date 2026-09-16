@@ -21,15 +21,18 @@ from vigilo_api.schemas import (
     VerificationInitiate,
     VerificationInitiateResponse,
 )
+from vigilo_billing import Meter, QuotaExceeded, consume, entitlements
 from vigilo_core.config import config
 from vigilo_core.models import Target, VerificationMethod
 from vigilo_core.validation import ValidationError, validate_target_url
 from vigilo_identity.models import Account
 from vigilo_project.repository import (
+    count_targets_for_project,
     create_target,
     get_or_create_default_project,
     get_ownership_proof,
     get_target,
+    get_target_by_origin,
     issue_ownership_proof,
 )
 
@@ -68,6 +71,18 @@ async def create_target_endpoint(
         raise HTTPException(status_code=422, detail=exc.message) from exc
 
     project = await get_or_create_default_project(session, account.id)
+
+    # Re-adding an already-tracked origin is idempotent-by-origin
+    # (create_target) and must never count against quota — only a genuinely
+    # new target is metered.
+    if await get_target_by_origin(session, project.id, origin) is None:
+        current_count = await count_targets_for_project(session, project.id)
+        decision = consume(current_count, 1, Meter.TARGETS, entitlements(account.plan_id))
+        if not decision.allowed:
+            raise QuotaExceeded(
+                "targets limit reached for plan", limit=decision.limit, current=decision.current
+            )
+
     target = await create_target(session, project.id, origin)
     return _to_response(target)
 

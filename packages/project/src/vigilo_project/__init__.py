@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from vigilo_project.models import OwnershipProof, Project
 from vigilo_project.repository import (
+    count_targets_for_project,
     create_target,
     get_or_create_default_project,
     get_ownership_proof,
@@ -14,6 +15,7 @@ from vigilo_project.repository import (
     get_target_by_origin,
     has_valid_ownership_proof,
     issue_ownership_proof,
+    list_target_ids_for_project,
     mark_proof_verified,
     set_opt_out,
 )
@@ -23,6 +25,8 @@ __all__ = [
     "OwnershipProof",
     "get_or_create_default_project",
     "create_target",
+    "count_targets_for_project",
+    "list_target_ids_for_project",
     "get_target",
     "get_target_by_origin",
     "set_opt_out",

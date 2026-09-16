@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vigilo_core.models import Finding, Score, Tier
@@ -54,6 +54,24 @@ async def create_scan_job(
 async def get_scan_job(session: AsyncSession, scan_job_id: uuid.UUID) -> ScanJob | None:
     row = await session.get(ScanJobRow, scan_job_id)
     return ScanJob.model_validate(row) if row else None
+
+
+async def count_scan_jobs_for_targets(
+    session: AsyncSession, target_ids: list[uuid.UUID], since: datetime
+) -> int:
+    """Feeds `vigilo_billing.consume(..., Meter.SCANS_MONTHLY, ...)` — target
+    ids are composed by the caller from `vigilo_project.repository` (this
+    module never imports `vigilo_project.orm`, per docs/modules.md §8's
+    "FK by table name only" convention). A live `COUNT` over `queued_at`,
+    matching `count_targets_for_project`'s no-stored-counter approach."""
+    if not target_ids:
+        return 0
+    result = await session.execute(
+        select(func.count())
+        .select_from(ScanJobRow)
+        .where(ScanJobRow.target_id.in_(target_ids), ScanJobRow.queued_at >= since)
+    )
+    return result.scalar_one()
 
 
 async def advance(session: AsyncSession, scan_job_id: uuid.UUID, new_status: str) -> ScanJob:
@@ -144,6 +162,7 @@ __all__ = [
     "TERMINAL_STATUSES",
     "create_scan_job",
     "get_scan_job",
+    "count_scan_jobs_for_targets",
     "advance",
     "record_scan_result",
     "get_scan_by_job_id",

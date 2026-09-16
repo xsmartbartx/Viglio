@@ -9,7 +9,7 @@ import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vigilo_core.models import Target, Tier, VerificationMethod
@@ -58,6 +58,28 @@ async def create_target(session: AsyncSession, project_id: uuid.UUID, origin: st
         await session.flush()
 
     return _target_from_row(row)
+
+
+async def list_target_ids_for_project(
+    session: AsyncSession, project_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """Composes the id list `vigilo_orchestrator.service
+    .count_scan_jobs_for_targets` needs — that module never imports
+    `vigilo_project.orm` directly, per docs/modules.md §8."""
+    result = await session.execute(
+        select(TargetRow.id).where(TargetRow.project_id == project_id)
+    )
+    return list(result.scalars().all())
+
+
+async def count_targets_for_project(session: AsyncSession, project_id: uuid.UUID) -> int:
+    """Feeds `vigilo_billing.consume(..., Meter.TARGETS, ...)` — a live
+    `COUNT`, not a stored counter, so there's nothing to decrement or drift
+    out of sync (docs/build-roadmap.md's Phase 7 framing)."""
+    result = await session.execute(
+        select(func.count()).select_from(TargetRow).where(TargetRow.project_id == project_id)
+    )
+    return result.scalar_one()
 
 
 async def get_target(session: AsyncSession, target_id: uuid.UUID) -> Target | None:
