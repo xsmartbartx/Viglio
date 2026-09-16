@@ -64,7 +64,9 @@ flowchart TD
     REPORTING --> API
     MONITOR --> ORCH
     MONITOR --> NOTIFY
+    CORE --> BILLING
     BILLING --> API
+    INTEG --> API
 ```
 
 Cycles are prohibited and enforced by an import-graph check in CI.
@@ -72,6 +74,14 @@ Cycles are prohibited and enforced by an import-graph check in CI.
 sections below, inserted as `1a`/`2a`/`2b` rather than renumbering the rest
 of this document, since many source files already cite `docs/modules.md §N`
 by number.)
+
+`CORE --> BILLING` and `INTEG --> API` were missing from this diagram before
+Phase 7 closed the gap: the former was always true (`billing` has always
+been specced as depending on `core`) and simply hadn't been drawn; the
+latter is a genuinely new edge Phase 7 introduces — `apps/api`'s billing
+router is the first place `apps/api` imports `vigilo_integrations` directly,
+for the checkout/webhook adapter (§11's deviation note explains why this
+replaced the originally-sketched `billing --> integrations` edge instead).
 
 ---
 
@@ -200,7 +210,23 @@ verified external identity to a local account.
 get_or_create_account(session, email, clerk_user_id=None) -> Account
 get_account_by_id(session, account_id) -> Account | None
 get_account_by_clerk_id(session, clerk_user_id) -> Account | None
+get_account_by_email(session, email) -> Account | None
+get_subscription_by_account(session, account_id) -> Subscription | None
+upsert_subscription(session, account_id, plan_id, status, provider,
+                     provider_subscription_id, current_period_end) -> Subscription
 ```
+
+**Persistence (Phase 7).** `SubscriptionRow` (`docs/data-model.md`'s
+`subscriptions` table) lives here, next to `AccountRow`, rather than in a
+`billing`-owned ORM — see §11's deviation note. `upsert_subscription()` is
+keyed on `provider_subscription_id` (a replayed webhook event updates the
+existing row rather than duplicating it) and cascades `AccountRow.plan_id`
+in the same flush: to `plan_id` when `status == "active"`, to `"free"`
+otherwise — a canceled subscription must not leave the account holding its
+paid entitlements forever, since `vigilo_billing.entitlements()` only ever
+reads `Account.plan_id`, never `Subscription.status` directly. Same
+same-transaction-cascade pattern `mark_proof_verified()` already established
+for `Target.verification_status` (`packages/project`).
 
 **Dependencies.** core, persistence.
 
@@ -607,24 +633,65 @@ secret fingerprint's location detail. Deep links require an authenticated sessio
 
 ## 11. billing
 
+**Status: implemented, Phase 7.**
+
 **Responsibility.** Map merchant-of-record subscription state to entitlements, and enforce
 quota.
 
 **Boundaries.** Never handles card data. Never talks to a card network. Entitlement
 evaluation only.
 
-**API**
+**API** (`packages/billing/src/vigilo_billing/`)
 
 ```python
-entitlements(account) -> Entitlements
-consume(account, meter: Meter, amount: int) -> QuotaDecision
-apply_webhook(event: MoREvent) -> None
+entitlements(plan_id: str | None) -> Entitlements       # unknown/None -> free
+consume(current_usage: int, amount: int, meter: Meter, entitlements: Entitlements) -> QuotaDecision
+interpret_webhook_event(payload: dict[str, Any]) -> MoREvent   # raises UnrecognizedWebhookEvent
 ```
 
-**Dependencies.** core, integrations.
+**Dependencies.** `core` only.
 
-**Security.** Webhooks are signature-verified and replay-protected. Quota is enforced
-server-side at authorisation time, never in the client.
+**Deviation (Phase 7).** The API above differs from the sketch this section
+originally carried in two ways, both matching the precedent Phase 3 set for
+`resolve_authorization` (`packages/security`) and Phase 4 for `build_report`
+(`packages/reporting`): a pure function over primitives, not a self-fetching
+one. `entitlements()`/`consume()` take `account`/`account.plan_id` and a
+live usage count as plain arguments rather than an `Account` object —
+`billing` never imports `identity` or opens a session, so the caller
+(`apps/api`) composes whatever persisted state it needs (a `plan_id`, a
+`COUNT(*)` from `vigilo_project`/`vigilo_orchestrator`) and passes plain
+values in. Second, the sketched `apply_webhook(event) -> None` — which
+implied `billing` performing its own persistence — is split: `billing`
+only *interprets* the raw payload into a typed `MoREvent`
+(`interpret_webhook_event()`); `apps/api`'s webhook route applies it via
+`vigilo_identity.upsert_subscription()` (§2a). This is also why the
+dependency list dropped `integrations`: signature verification and payload
+parsing (`verify_webhook_signature()`, `parse_webhook_event()`,
+`create_checkout_url()`) live in `packages/integrations/billing.py` and are
+called directly by `apps/api`'s billing router, never by `billing` itself —
+`billing` only ever sees the already-parsed `dict`. `consume()` never
+raises; the caller decides whether to construct and raise the (also new)
+`QuotaExceeded` error.
+
+`packages/billing/tests/test_import_boundary.py` makes the `core`-only
+boundary build-blocking, the same AST-only-scan pattern
+`packages/checks/tests/test_import_boundary.py` already established.
+
+**Persistence.** `Subscription` — the one piece of billing-adjacent state
+that *is* persisted — lives in `packages/identity` next to `Account`, not in
+a `billing`-owned ORM (§2a, `docs/data-model.md`'s `subscriptions` table).
+
+**Provider.** Paddle is the concrete reference implementation of "a
+merchant of record" (ADR-0002 lists it first); stubbed against
+locally-computed signatures, never a real account — see
+`packages/integrations/src/vigilo_integrations/billing.py`.
+
+**Security.** Webhooks are signature-verified (`Paddle-Signature` header,
+HMAC-SHA256) before the body is ever parsed; an invalid signature is
+rejected with `401` before Paddle's retry logic would kick in. Quota is
+enforced server-side at authorisation time (`apps/api`'s `targets`/`scans`
+routers), never in the client. See `docs/security.md`'s webhook note for the
+attack-surface framing.
 
 ---
 

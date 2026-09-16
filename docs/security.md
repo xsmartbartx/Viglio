@@ -67,7 +67,7 @@ still deny), and a redirect-into-internal-space case.
 
 | Concern | Where it will live | Blocked on |
 | --- | --- | --- |
-| Rate governor (per-account, per-target-host, global, Redis-backed) | `packages/security` | Phase 6/7 — Phase 3 added a minimal ceiling check inside `resolve_authorization()` (§3), but the caller (`apps/api/src/vigilo_api/routers/scans.py`) still hardcodes `recent_scan_count_24h=0` on every call rather than computing a real count from the database, so the ceiling never actually triggers yet. Found during Phase 6 (which fixed the analogous hardcoded-tier gap in the same function, see the ADR-0003 Phase 6 addendum) but deliberately left unfixed — a separate, independent gap, not in that phase's scope. |
+| Rate governor (per-account, per-target-host, global, Redis-backed) | `packages/security` | Still open after Phase 7 — Phase 3 added a minimal ceiling check inside `resolve_authorization()` (§3), but the caller (`apps/api/src/vigilo_api/routers/scans.py`) still hardcodes `recent_scan_count_24h=0` on every call rather than computing a real count from the database, so the ceiling never actually triggers yet. Found during Phase 6 (which fixed the analogous hardcoded-tier gap in the same function, see the ADR-0003 Phase 6 addendum). Phase 7 added a *separate*, plan-scoped monthly scan quota (`vigilo_billing`'s `SCANS_MONTHLY` meter, `docs/modules.md` §11) but deliberately left this 24h abuse ceiling alone — different concern (abuse rate vs. plan entitlement), not in scope either phase. |
 | Abuse heuristics (enumeration patterns, target churn) | `packages/security` | Scan history to detect patterns against (Phase 3+) |
 | Redirect same-registrable-domain restriction | `packages/security/egress_guard.py` | Public-suffix-list dependency (Phase 1) |
 | Worker network isolation (the scan zone has no route to internal services) | Deployment topology, not application code | Phase 1 deployment target |
@@ -200,9 +200,49 @@ infrastructure exists yet (`accounts.data_region` is an unused placeholder,
 entirely instead — stronger than tokenizing it, and needs no new
 infrastructure.
 
+## 7. Billing webhook (`POST /v1/billing/webhook`)
+
+**Status: implemented, `apps/api/src/vigilo_api/routers/billing.py` +
+`packages/integrations/src/vigilo_integrations/billing.py`.**
+
+**The attack surface.** This route is deliberately public — a merchant of
+record (Paddle) calls it from outside our network, so it cannot require the
+bearer token every other mutating route requires. Signature verification
+(`verify_webhook_signature()`, HMAC-SHA256 over `Paddle-Signature`'s
+`ts:body` per Paddle's documented scheme) is the *only* gate: an invalid or
+missing signature is rejected with `401` before the body is ever parsed as
+JSON, let alone interpreted as a subscription event.
+
+**What a forged event could do if the gate failed.** `interpret_webhook_event()`
+maps a recognized event straight to `upsert_subscription()`, which cascades
+`accounts.plan_id` — a forged, correctly-signed "subscription.created" event
+for an arbitrary `account_email` would grant that account a paid plan's
+entitlements for free. This is why the signature check happens first, over
+the raw, unparsed bytes, and why the webhook secret
+(`PADDLE_WEBHOOK_SECRET`) is treated with the same care as the other
+optional-but-sensitive provider secrets in `.env.example`.
+
+**Deliberately not implemented: replay protection.** The signature covers a
+timestamp (`ts=`) but this implementation does not currently reject a
+signature whose timestamp is old — a captured, validly-signed request could
+in principle be replayed. `upsert_subscription()`'s own idempotency
+(keyed on `provider_subscription_id`) limits the damage of a naive replay to
+a no-op re-application of the same, already-applied state, not a fresh
+unauthorized change — but a genuine replay window still exists. Tracked as
+a known gap, not fixed this phase, matching this document's convention of
+disclosing rather than silently deferring.
+
+**Unrecognized events return `200`, not an error.** An unrecognized
+`event_type` or a recognized type with a malformed payload is a no-op that
+still returns `200` — matching Paddle's own expected webhook behavior and
+avoiding a retry storm from a provider event this integration doesn't act
+on. This is a deliberate availability trade-off, not a validation gap: the
+signature check has already run by this point, so an attacker cannot use
+this path to probe for accepted event shapes without a valid signature.
+
 ## References
 
-ADR-0001, ADR-0003 (including its Phase 3 addendum), ADR-0004,
+ADR-0001, ADR-0002, ADR-0003 (including its Phase 3 addendum), ADR-0004,
 `docs/architecture.md` §7 and §15 (numbered as such in
 `docs/prooflight-vision-and-architecture.md`), `docs/modules.md` §2, §2a, §2b,
-`docs/data-model.md`.
+§11, `docs/data-model.md`.

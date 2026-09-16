@@ -18,10 +18,10 @@ Phase 5 adds `remediation_cache` — a deliberate addition beyond the domain
 model's own entity table, same pattern as `scans.bundle_id`: the domain
 model doesn't name a remediation cache, but
 `docs/adr/ADR-0004-llm-boundary.md` and the Prooflight doc's own risk
-register ("caching by fingerprint") require one. `MonitorSchedule`, `Alert`,
-`ApiKey`, `Subscription`, `ScoreSnapshot` and a standalone `Evidence` table
-remain deferred to the phases that actually need them (Phase 7 billing,
-Phase 8 monitoring).
+register ("caching by fingerprint") require one. Phase 7 adds
+`subscriptions`. `MonitorSchedule`, `Alert`, `ApiKey` and `ScoreSnapshot`
+and a standalone `Evidence` table remain deferred to the phases that
+actually need them (Phase 8 monitoring, Phase 9 public API).
 
 ---
 
@@ -32,7 +32,7 @@ Phase 8 monitoring).
 | `id` | UUID, PK | |
 | `email` | varchar(320), unique, indexed | |
 | `status` | varchar(32) | `anonymous` \| `active` \| `suspended` |
-| `plan_id` | varchar(64), nullable | Placeholder — billing is Phase 7 |
+| `plan_id` | varchar(64), nullable | `null`/unrecognized resolves to `free` via `vigilo_billing.entitlements()` (Phase 7). Cascaded by `vigilo_identity.upsert_subscription()` — never written directly by request-handling code — whenever the `subscriptions` row below changes; see that table's notes. |
 | `data_region` | varchar(32), nullable | Placeholder, unused until multi-region hosting exists |
 | `clerk_user_id` | varchar(128), unique, nullable | **Deviation**: not in the Prooflight domain table. Maps a Clerk session's `sub` claim to this row. Nullable because a free scan creates an account from an email alone, before anyone has signed in. |
 | `created_at` | timestamptz | |
@@ -46,6 +46,34 @@ looks up by `email` first; if a matching row exists and has no
 `clerk_user_id` yet, it attaches the Clerk id and promotes `status` to
 `active` in place, rather than creating a second row. One account, one
 email, regardless of which path created it first.
+
+## subscriptions (`packages/identity`, added Phase 7)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID, PK | |
+| `account_id` | UUID, FK `accounts.id`, indexed | |
+| `plan_id` | varchar(64) | `free` \| `builder` \| `studio` (`vigilo_billing.PlanId`) |
+| `status` | varchar(16) | `active` \| `canceled` |
+| `provider` | varchar(32) | `paddle` today — provider-agnostic column, only one provider implemented |
+| `provider_subscription_id` | varchar(128), unique | The provider's own subscription id. **Not** unique on `account_id` alone — a provider issues a new subscription id on plan change or renewal, so rows accumulate over time rather than being updated in place; `get_subscription_by_account()` returns the most recently created row. |
+| `current_period_end` | timestamptz, nullable | From the provider's webhook payload; `null` if the provider didn't supply one (e.g. a canceled subscription) |
+| `created_at` | timestamptz | |
+
+**Deviation — lives in `identity`, not a `billing`-owned table.** The
+Prooflight domain model doesn't specify an owning module for `Subscription`;
+`packages/billing` itself is deliberately ORM-free (`docs/modules.md` §11's
+deviation note), so this table lives next to `accounts` instead, owned by
+`packages/identity`.
+
+**Cascade.** `upsert_subscription()` is the only writer, keyed on
+`provider_subscription_id` (a replayed webhook event updates the existing
+row rather than duplicating it), and in the same flush sets
+`accounts.plan_id` to `plan_id` when `status == "active"`, or to `"free"`
+otherwise. This is why a canceled subscription doesn't strand an account on
+its old paid plan forever: `vigilo_billing.entitlements()` only ever reads
+`accounts.plan_id`, never queries this table directly, so the cascade is
+what actually revokes the entitlement.
 
 ## projects (`packages/project`)
 
@@ -256,4 +284,5 @@ this yet), `Evidence` as its own relational table (no phase commits to this
 yet — object storage has sufficed so far), `CheckDefinition` (the registry
 in code is the source of truth; no DB mirror exists), `ScoreSnapshot`
 (Phase 8's score-history charts), `MonitorSchedule`/`Alert` (Phase 8),
-`ApiKey` (Phase 9's public API), `Subscription` (Phase 7).
+`ApiKey` (Phase 9's public API). `Subscription` is no longer deferred — see
+`## subscriptions` above (Phase 7).
