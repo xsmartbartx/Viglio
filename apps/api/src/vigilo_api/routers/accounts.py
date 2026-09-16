@@ -8,7 +8,8 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from vigilo_api.deps import AccountDep
-from vigilo_api.schemas import AccountResponse
+from vigilo_api.schemas import AccountResponse, EntitlementsResponse
+from vigilo_billing import entitlements
 
 router = APIRouter(prefix="/v1", tags=["accounts"])
 
@@ -20,4 +21,5 @@ async def get_me(account: AccountDep) -> AccountResponse:
         email=account.email,
         status=account.status,
         created_at=account.created_at,
+        entitlements=EntitlementsResponse.model_validate(entitlements(account.plan_id)),
     )

@@ -32,11 +32,25 @@ class ScanStatusResponse(BaseModel):
     finished_at: datetime | None = None
 
 
+class EntitlementsResponse(BaseModel):
+    plan_id: str
+    targets_limit: int | None
+    scans_per_month_limit: int | None
+    active_tier_allowed: bool
+    share_links_allowed: bool
+    monitoring_frequency: str | None
+    api_keys_limit: int | None
+    repo_connectors_limit: int | None
+
+    model_config = {"from_attributes": True}
+
+
 class AccountResponse(BaseModel):
     account_id: uuid.UUID
     email: str
     status: str
     created_at: datetime
+    entitlements: EntitlementsResponse
 
 
 class TargetCreate(BaseModel):

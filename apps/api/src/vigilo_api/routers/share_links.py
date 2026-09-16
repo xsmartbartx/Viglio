@@ -21,6 +21,7 @@ from vigilo_api.schemas import (
     ShareLinkResponse,
     ShareLinkRevokeResponse,
 )
+from vigilo_billing import QuotaExceeded, entitlements
 from vigilo_core.errors import ErrorCode, StructuredError
 from vigilo_identity.models import Account
 from vigilo_orchestrator.reports import (
@@ -78,6 +79,9 @@ async def create_scan_share_link(
     session: SessionDep,
 ) -> ShareLinkCreateResponse:
     await _owned_scan_or_404(session, account, scan_job_id)
+    if not entitlements(account.plan_id).share_links_allowed:
+        raise QuotaExceeded("share links are not included in the account's plan")
+
     scan = await get_scan_by_job_id(session, scan_job_id)
     if scan is None:
         raise HTTPException(status_code=409, detail="report not ready")

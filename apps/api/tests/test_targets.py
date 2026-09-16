@@ -80,3 +80,27 @@ async def test_verification_check_for_an_unknown_proof_returns_404(client, accou
 async def test_target_endpoints_require_authentication(client):
     response = await client.post("/v1/targets", json={"origin": "https://example.com"})
     assert response.status_code == 401
+
+
+async def test_create_target_beyond_the_free_plan_limit_is_denied(client, account):
+    """Free plan's targets_limit is 1 (packages/billing/plans.py) — a second,
+    genuinely new origin is denied; the account's own existing target isn't
+    counted twice against it."""
+    first = await client.post("/v1/targets", json={"origin": "https://example.com"})
+    assert first.status_code == 201
+
+    second = await client.post("/v1/targets", json={"origin": "https://second.example.com"})
+
+    assert second.status_code == 429
+    assert second.json()["code"] == "QUOTA_EXCEEDED"
+
+
+async def test_creating_a_target_for_an_already_tracked_origin_never_counts_against_quota(
+    client, account
+):
+    first = await client.post("/v1/targets", json={"origin": "https://example.com"})
+    assert first.status_code == 201
+
+    repeat = await client.post("/v1/targets", json={"origin": "https://example.com"})
+
+    assert repeat.status_code == 201
