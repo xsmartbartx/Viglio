@@ -70,6 +70,10 @@ class Config(BaseModel):
     web_app_url: str | None = None
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-haiku-4-5"
+    paddle_vendor_id: str | None = None
+    paddle_webhook_secret: str | None = None
+    paddle_price_id_builder: str | None = None
+    paddle_price_id_studio: str | None = None
 
 
 def _default_brand_config_path() -> Path:
@@ -127,4 +131,8 @@ def config() -> Config:
         web_app_url=os.environ.get("WEB_APP_URL"),
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY"),
         anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5"),
+        paddle_vendor_id=os.environ.get("PADDLE_VENDOR_ID"),
+        paddle_webhook_secret=os.environ.get("PADDLE_WEBHOOK_SECRET"),
+        paddle_price_id_builder=os.environ.get("PADDLE_PRICE_ID_BUILDER"),
+        paddle_price_id_studio=os.environ.get("PADDLE_PRICE_ID_STUDIO"),
     )

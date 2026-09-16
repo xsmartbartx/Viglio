@@ -58,6 +58,9 @@ class ErrorCode(StrEnum):
     # Integrations (Phase 5, docs/modules.md §7)
     LLM_PROVIDER_ERROR = "LLM_PROVIDER_ERROR"
 
+    # Integrations (Phase 7, docs/modules.md §7)
+    BILLING_PROVIDER_ERROR = "BILLING_PROVIDER_ERROR"
+
 
 class StructuredError(Exception):
     """A structured, loggable error carrying a stable code and sanitized context.

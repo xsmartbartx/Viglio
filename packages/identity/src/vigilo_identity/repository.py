@@ -7,11 +7,14 @@ matching the pattern `vigilo_security.audit.audit()` uses for the same reason
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from vigilo_identity.models import Account
-from vigilo_identity.orm import AccountRow
+from vigilo_identity.models import Account, Subscription
+from vigilo_identity.orm import AccountRow, SubscriptionRow
 
 
 async def get_account_by_id(session: AsyncSession, account_id: object) -> Account | None:
@@ -69,3 +72,70 @@ async def get_or_create_account(
         await session.flush()
 
     return Account.model_validate(row)
+
+
+async def get_subscription_by_account(
+    session: AsyncSession, account_id: uuid.UUID
+) -> Subscription | None:
+    """The most recent subscription row for this account, if more than one
+    exists — a provider issues a new `provider_subscription_id` on plan
+    change/renewal, so rows accumulate over time rather than being
+    updated in place."""
+    stmt = (
+        select(SubscriptionRow)
+        .where(SubscriptionRow.account_id == account_id)
+        .order_by(SubscriptionRow.created_at.desc())
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    row = result.scalar_one_or_none()
+    return Subscription.model_validate(row) if row else None
+
+
+async def upsert_subscription(
+    session: AsyncSession,
+    account_id: uuid.UUID,
+    plan_id: str,
+    status: str,
+    provider: str,
+    provider_subscription_id: str,
+    current_period_end: datetime | None,
+) -> Subscription:
+    """Keyed on `provider_subscription_id` — a webhook replaying the same
+    event, or a later status update for the same subscription, updates the
+    existing row rather than creating a duplicate. Cascades `AccountRow
+    .plan_id` in the same flush, identical to `mark_proof_verified()`
+    cascading `Target.verification_status`
+    (`packages/project/src/vigilo_project/repository.py`)."""
+    result = await session.execute(
+        select(SubscriptionRow).where(
+            SubscriptionRow.provider_subscription_id == provider_subscription_id
+        )
+    )
+    row = result.scalar_one_or_none()
+
+    if row is None:
+        row = SubscriptionRow(
+            account_id=account_id,
+            plan_id=plan_id,
+            status=status,
+            provider=provider,
+            provider_subscription_id=provider_subscription_id,
+            current_period_end=current_period_end,
+        )
+        session.add(row)
+    else:
+        row.plan_id = plan_id
+        row.status = status
+        row.current_period_end = current_period_end
+
+    # A canceled/non-active subscription must NOT leave the account holding
+    # its paid entitlements forever — entitlements() only ever looks at
+    # Account.plan_id, so a cancellation has to actually reset it to "free"
+    # here, not just record status="canceled" on a row nothing re-reads.
+    account_row = await session.get(AccountRow, account_id)
+    if account_row is not None:
+        account_row.plan_id = plan_id if status == "active" else "free"
+
+    await session.flush()
+    return Subscription.model_validate(row)

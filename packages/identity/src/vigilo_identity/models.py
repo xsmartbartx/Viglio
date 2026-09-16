@@ -20,3 +20,16 @@ class Account(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class Subscription(BaseModel):
+    id: uuid.UUID
+    account_id: uuid.UUID
+    plan_id: str
+    status: str
+    provider: str
+    provider_subscription_id: str
+    current_period_end: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
