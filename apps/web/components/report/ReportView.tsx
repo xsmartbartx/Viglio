@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ScanReportResponse, ShareLinkResponse } from "../../lib/types";
 import { ScoreHeader } from "./ScoreHeader";
 import { SeverityGroup } from "./SeverityGroup";
@@ -22,8 +23,16 @@ export function ReportView({
       <ScoreHeader report={report} />
 
       {showOwnerControls ? (
-        <div className="mb-6">
+        <div className="mb-6 flex items-center gap-3">
           <ExportPdfButton scanJobId={report.scan_job_id as string} />
+          {report.target_id ? (
+            <Link
+              href={`/targets/${report.target_id}/monitoring`}
+              className="rounded-md border border-black/10 dark:border-white/20 px-3 py-1.5 text-sm font-medium"
+            >
+              Manage monitoring
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
