@@ -1,0 +1,28 @@
+[project]
+name = "vigilo-monitoring"
+version = "0.1.0"
+description = "Vigilo monitoring: scheduling, scan diffing, alert persistence"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = [
+    "vigilo-core",
+    "vigilo-persistence",
+    "vigilo-orchestrator",
+    "vigilo-scoring",
+]
+
+[dependency-groups]
+dev = ["pytest-asyncio>=0.24"]
+
+[tool.uv.sources]
+vigilo-core = { workspace = true }
+vigilo-persistence = { workspace = true }
+vigilo-orchestrator = { workspace = true }
+vigilo-scoring = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vigilo_monitoring"]
