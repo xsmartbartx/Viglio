@@ -6,7 +6,9 @@ from vigilo_monitoring.diff import detect_regression
 _REGISTRY_VERSION = "0.1"
 
 
-def _finding(fingerprint: str, check_id: str = "VG-HDR-001", severity: Severity = Severity.HIGH) -> Finding:
+def _finding(
+    fingerprint: str, check_id: str = "VG-HDR-001", severity: Severity = Severity.HIGH
+) -> Finding:
     return Finding(
         check_id=check_id,
         verdict=Verdict.FAILED,

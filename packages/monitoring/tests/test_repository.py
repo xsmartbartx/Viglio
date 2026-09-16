@@ -49,7 +49,9 @@ async def test_create_monitor_is_idempotent_by_target(db_session: AsyncSession) 
     assert second.cadence_hours == 24
 
 
-async def test_get_monitor_by_target_returns_none_when_none_exists(db_session: AsyncSession) -> None:
+async def test_get_monitor_by_target_returns_none_when_none_exists(
+    db_session: AsyncSession,
+) -> None:
     _, target_id = await _seed_target(db_session, "monitor2@example.com")
     assert await get_monitor_by_target(db_session, target_id) is None
 
@@ -72,7 +74,9 @@ async def test_due_monitors_only_returns_enabled_monitors_past_next_run_at(
 async def test_disabled_monitors_are_never_due(db_session: AsyncSession) -> None:
     account_id, target_id = await _seed_target(db_session, "monitor5@example.com")
     now = datetime.now(UTC)
-    monitor = await create_monitor(db_session, target_id, account_id, 24, now - timedelta(minutes=1))
+    monitor = await create_monitor(
+        db_session, target_id, account_id, 24, now - timedelta(minutes=1)
+    )
 
     await disable_monitor(db_session, monitor.id)
 

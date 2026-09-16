@@ -1,12 +1,15 @@
 """The concrete enforcement of `packages/monitoring`'s documented boundary
 (docs/modules.md §9): parses the AST of every module under
 `src/vigilo_monitoring/`, no execution, and asserts every import resolves
-to the standard library, `vigilo_core`, `vigilo_persistence`, or
-`vigilo_orchestrator`. `vigilo_scoring` was in the module's originally
+to the standard library, `pydantic`/`sqlalchemy` (this module owns real
+persistence, unlike `billing`/`checks` — it uses the same Pydantic-model +
+SQLAlchemy-ORM shape `identity`/`project` already establish, not `billing`'s
+stricter dataclass-only convention), `vigilo_core`, `vigilo_persistence`,
+or `vigilo_orchestrator`. `vigilo_scoring` was in the module's originally
 sketched dependency list but nothing here actually needs it — score-drop
 detection is a fixed threshold, not a scoring-module concept — so it was
 dropped, matching `packages/checks/tests/test_import_boundary.py`'s exact
-pattern.
+enforcement pattern (adapted for this module's actual, larger footprint).
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ _ALLOWED_PACKAGE_PREFIXES = (
     "vigilo_orchestrator",
     "vigilo_monitoring",
 )
+_ALLOWED_THIRD_PARTY = {"pydantic", "sqlalchemy"}
 _STDLIB_NAMES = sys.stdlib_module_names
 
 
@@ -57,6 +61,7 @@ def test_monitoring_modules_import_only_stdlib_core_persistence_or_orchestrator(
             name
             for name in imported
             if name not in _STDLIB_NAMES
+            and name not in _ALLOWED_THIRD_PARTY
             and not name.startswith(_ALLOWED_PACKAGE_PREFIXES)
             and name != "__future__"
         }
@@ -64,9 +69,9 @@ def test_monitoring_modules_import_only_stdlib_core_persistence_or_orchestrator(
             violations[str(path.relative_to(_SRC_ROOT))] = disallowed
 
     assert not violations, (
-        "packages/monitoring may depend on the standard library, vigilo_core, "
-        "vigilo_persistence and vigilo_orchestrator only (docs/modules.md §9); "
-        f"found disallowed imports: {violations}"
+        "packages/monitoring may depend on the standard library, pydantic, "
+        "sqlalchemy, vigilo_core, vigilo_persistence and vigilo_orchestrator "
+        f"only (docs/modules.md §9); found disallowed imports: {violations}"
     )
 
 

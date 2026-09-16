@@ -29,14 +29,17 @@ def compute_next_run_at(
     jitter = timedelta(minutes=random.randint(-jitter_minutes, jitter_minutes))
     candidate = now + timedelta(hours=cadence_hours) + jitter
 
-    if quiet_start_utc is not None and quiet_end_utc is not None:
-        if _in_quiet_hours(candidate.hour, quiet_start_utc, quiet_end_utc):
-            # Push forward to quiet_end_utc — same day if that's still ahead
-            # of the candidate (the "early morning" half of a wrapped
-            # window), otherwise the next day (the "late night" half).
-            pushed = candidate.replace(hour=quiet_end_utc, minute=0, second=0, microsecond=0)
-            if pushed <= candidate:
-                pushed += timedelta(days=1)
-            candidate = pushed
+    if (
+        quiet_start_utc is not None
+        and quiet_end_utc is not None
+        and _in_quiet_hours(candidate.hour, quiet_start_utc, quiet_end_utc)
+    ):
+        # Push forward to quiet_end_utc — same day if that's still ahead of
+        # the candidate (the "early morning" half of a wrapped window),
+        # otherwise the next day (the "late night" half).
+        pushed = candidate.replace(hour=quiet_end_utc, minute=0, second=0, microsecond=0)
+        if pushed <= candidate:
+            pushed += timedelta(days=1)
+        candidate = pushed
 
     return candidate
