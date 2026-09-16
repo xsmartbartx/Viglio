@@ -82,6 +82,31 @@ def test_active_request_with_a_valid_proof_is_granted_active():
     assert decision.denial_code is None
 
 
+def test_active_request_with_a_valid_proof_but_plan_disallows_active_downgrades_to_passive():
+    decision = resolve_authorization(
+        _request(
+            requested_tier=Tier.ACTIVE,
+            target_verification_status=Tier.ACTIVE,
+            ownership_proof_valid=True,
+            active_tier_permitted_by_plan=False,
+        )
+    )
+    assert decision.allowed is True
+    assert decision.granted_tier == Tier.PASSIVE
+    assert decision.denial_code == ErrorCode.TIER_NOT_PERMITTED
+
+
+def test_active_tier_permitted_by_plan_defaults_to_true_when_unset():
+    decision = resolve_authorization(
+        _request(
+            requested_tier=Tier.ACTIVE,
+            target_verification_status=Tier.ACTIVE,
+            ownership_proof_valid=True,
+        )
+    )
+    assert decision.granted_tier == Tier.ACTIVE
+
+
 def test_denylist_takes_priority_over_a_valid_active_proof():
     decision = resolve_authorization(
         _request(

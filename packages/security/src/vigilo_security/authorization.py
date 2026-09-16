@@ -33,6 +33,12 @@ class AuthorizationRequest:
     ownership_proof_valid: bool
     recent_scan_count_24h: int
     denylisted: bool
+    active_tier_permitted_by_plan: bool = True
+    """Whether the submitter's plan includes active tier at all (Phase 7,
+    packages/billing). Defaulted True so a caller that hasn't been updated
+    to compute this (or a brand-new submitter with no account/plan yet)
+    is unaffected — the existing ownership-proof gate independently blocks
+    active tier for anyone without a verified target regardless."""
 
 
 @dataclass(frozen=True)
@@ -80,6 +86,13 @@ def resolve_authorization(request: AuthorizationRequest) -> AuthorizationDecisio
                 allowed=True,
                 granted_tier=Tier.PASSIVE,
                 reason="active tier requested without a valid, unexpired ownership proof",
+                denial_code=ErrorCode.TIER_NOT_PERMITTED,
+            )
+        if not request.active_tier_permitted_by_plan:
+            return AuthorizationDecision(
+                allowed=True,
+                granted_tier=Tier.PASSIVE,
+                reason="active tier requested but the account's plan does not include it",
                 denial_code=ErrorCode.TIER_NOT_PERMITTED,
             )
         return AuthorizationDecision(
