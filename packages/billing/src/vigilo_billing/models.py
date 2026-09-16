@@ -18,15 +18,17 @@ class PlanId(StrEnum):
 class Meter(StrEnum):
     TARGETS = "targets"
     SCANS_MONTHLY = "scans_monthly"
+    MONITORS = "monitors"
 
 
 @dataclass(frozen=True)
 class Plan:
     """One subscription plan's static entitlements
     (docs/prooflight-vision-and-architecture.md §14). `None` on a limit
-    field means unlimited. `monitoring_frequency`/`api_keys_limit`/
-    `repo_connectors_limit` are Phase 8/9-shaped but unenforced — no
-    monitor, API key, or repo connector exists yet to restrict."""
+    field means unlimited. `api_keys_limit`/`repo_connectors_limit` are
+    Phase 9-shaped but unenforced — no API key or repo connector exists yet
+    to restrict. `monitoring_frequency`/`monitors_limit` were the same
+    (Phase 8-shaped, unenforced) until Phase 8 wired them up."""
 
     plan_id: PlanId
     targets_limit: int | None
@@ -34,6 +36,7 @@ class Plan:
     active_tier_allowed: bool
     share_links_allowed: bool
     monitoring_frequency: str | None = None
+    monitors_limit: int | None = None
     api_keys_limit: int | None = None
     repo_connectors_limit: int | None = None
 

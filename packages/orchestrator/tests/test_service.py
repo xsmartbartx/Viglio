@@ -174,7 +174,9 @@ async def test_list_ever_failed_fingerprints_before_only_looks_strictly_before_t
     assert fingerprints_after == frozenset({failing.fingerprint})
 
 
-async def test_get_failed_findings_for_scan_filters_to_failed_only(db_session: AsyncSession) -> None:
+async def test_get_failed_findings_for_scan_filters_to_failed_only(
+    db_session: AsyncSession,
+) -> None:
     target_id = await _target_id(db_session)
     failing = _finding("VG-HDR-001", Verdict.FAILED, Severity.HIGH)
     passing = _finding("VG-HDR-002", Verdict.PASSED, Severity.PASSED)

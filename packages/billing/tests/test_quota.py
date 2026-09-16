@@ -46,3 +46,16 @@ def test_consume_checks_the_scans_monthly_meter_independently_of_targets():
     free = entitlements("free")  # scans_per_month_limit = 3
     decision = consume(current_usage=3, amount=1, meter=Meter.SCANS_MONTHLY, entitlements=free)
     assert decision.allowed is False
+
+
+def test_consume_denies_any_monitor_on_the_free_plan():
+    free = entitlements("free")  # monitors_limit = 0
+    decision = consume(current_usage=0, amount=1, meter=Meter.MONITORS, entitlements=free)
+    assert decision.allowed is False
+    assert decision.limit == 0
+
+
+def test_consume_allows_monitors_up_to_the_builder_limit():
+    builder = entitlements("builder")  # monitors_limit = 3
+    decision = consume(current_usage=2, amount=1, meter=Meter.MONITORS, entitlements=builder)
+    assert decision.allowed is True
