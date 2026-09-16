@@ -13,10 +13,11 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from vigilo_core.models import Finding, Score, Tier
+from vigilo_core.models import Finding, Score, Tier, Verdict
 from vigilo_orchestrator.errors import InvalidScanTransition, ScanJobNotFound
 from vigilo_orchestrator.models import Scan, ScanJob
 from vigilo_orchestrator.orm import FindingRow, ScanJobRow, ScanRow
+from vigilo_orchestrator.reports import get_findings_for_scan
 
 # docs/modules.md §8's state machine, verbatim.
 _ALLOWED_TRANSITIONS: dict[str, set[str]] = {
@@ -158,6 +159,54 @@ async def get_scan(session: AsyncSession, scan_id: uuid.UUID) -> Scan | None:
     return Scan.model_validate(row) if row else None
 
 
+async def list_scans_for_target(
+    session: AsyncSession, target_id: uuid.UUID, limit: int = 50
+) -> list[Scan]:
+    """Score history — `ScanRow` already carries `score`/`grade`/
+    `created_at`, so this is a plain ordered read, no new table
+    (`vigilo_monitoring`'s score-history chart consumes this directly)."""
+    result = await session.execute(
+        select(ScanRow)
+        .where(ScanRow.target_id == target_id)
+        .order_by(ScanRow.created_at.desc())
+        .limit(limit)
+    )
+    return [Scan.model_validate(row) for row in result.scalars().all()]
+
+
+async def list_ever_failed_fingerprints_before(
+    session: AsyncSession, target_id: uuid.UUID, before: datetime
+) -> frozenset[str]:
+    """Feeds `vigilo_monitoring.diff.detect_regression()`'s
+    `ever_failed_before_previous` argument — distinguishes a fingerprint
+    reappearing after having been resolved (`regressed`) from one that has
+    never failed on this target before (`new_critical`/`new_high`)."""
+    result = await session.execute(
+        select(FindingRow.fingerprint)
+        .join(ScanRow, FindingRow.scan_id == ScanRow.id)
+        .where(
+            ScanRow.target_id == target_id,
+            ScanRow.created_at < before,
+            FindingRow.status == Verdict.FAILED.value,
+        )
+        .distinct()
+    )
+    return frozenset(result.scalars().all())
+
+
+async def get_failed_findings_for_scan(
+    session: AsyncSession, scan_id: uuid.UUID
+) -> dict[str, Finding]:
+    """Fingerprint-keyed, `Verdict.FAILED` only — the shape
+    `detect_regression()`'s `previous_failed`/`current_failed` arguments
+    need. Reuses `get_findings_for_scan()` (`reports.py`) rather than a
+    second query."""
+    findings = await get_findings_for_scan(session, scan_id)
+    return {
+        finding.fingerprint: finding for finding in findings if finding.verdict == Verdict.FAILED
+    }
+
+
 __all__ = [
     "TERMINAL_STATUSES",
     "create_scan_job",
@@ -167,4 +216,7 @@ __all__ = [
     "record_scan_result",
     "get_scan_by_job_id",
     "get_scan",
+    "list_scans_for_target",
+    "list_ever_failed_fingerprints_before",
+    "get_failed_findings_for_scan",
 ]

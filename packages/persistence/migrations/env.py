@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 # lazily, so these only need to have been imported at all before
 # `target_metadata` is read below.
 import vigilo_identity.orm  # noqa: E402,F401
+import vigilo_monitoring.orm  # noqa: E402,F401
 import vigilo_orchestrator.orm  # noqa: E402,F401
 import vigilo_project.orm  # noqa: E402,F401
 import vigilo_security.orm  # noqa: E402,F401
