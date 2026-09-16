@@ -8,7 +8,6 @@ dependencies = [
     "vigilo-core",
     "vigilo-persistence",
     "vigilo-orchestrator",
-    "vigilo-scoring",
 ]
 
 [dependency-groups]
@@ -18,7 +17,6 @@ dev = ["pytest-asyncio>=0.24"]
 vigilo-core = { workspace = true }
 vigilo-persistence = { workspace = true }
 vigilo-orchestrator = { workspace = true }
-vigilo-scoring = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

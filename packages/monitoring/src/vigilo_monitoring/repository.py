@@ -91,10 +91,14 @@ async def reschedule_monitor(
 
 
 async def count_monitors_for_account(session: AsyncSession, account_id: uuid.UUID) -> int:
+    """Feeds `vigilo_billing.consume(..., Meter.MONITORS, ...)` — a live
+    `COUNT`, matching `count_targets_for_project`'s precedent."""
     result = await session.execute(
-        select(MonitorRow).where(MonitorRow.account_id == account_id, MonitorRow.enabled.is_(True))
+        select(func.count())
+        .select_from(MonitorRow)
+        .where(MonitorRow.account_id == account_id, MonitorRow.enabled.is_(True))
     )
-    return len(result.scalars().all())
+    return result.scalar_one()
 
 
 async def record_alert(
