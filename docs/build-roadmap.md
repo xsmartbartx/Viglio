@@ -467,12 +467,141 @@ build-blocking CI job, `regression-diff-suite`, matching the `egress-guard-
 suite`/`ownership-verification-suite`/`tier-gating-suite` precedent.
 `uv run pytest -q` (531 tests) and `uv run ruff check .` both green.
 
-## Phase 9 — Distribution
+## Phase 9 — Distribution (scoped) ✅
 
-Public REST API + SSE; MCP server (`packages/mcp`) exposing `run_scan`,
-`get_findings`, `get_fix_prompt`; read-only repository connector (secret and
-dependency scanning, scored separately from the live-site score); white-label
-reports and client workspaces; self-hostable engine container image.
+The roadmap's paragraph bundles five largely-independent initiatives with
+no "Done when" exit criterion given — unique among all nine phases.
+Research during planning found the repo connector is a wholly new
+subsystem (a new auth model against GitHub, a new evidence source —
+repository contents, never an HTTP response — new scanning logic, a
+separate scoring path) comparable in size to Phase 7 or 8 by itself, with
+nothing existing to build on. **Scoped out to its own future phase**,
+per an explicit scope decision during planning; the other four shipped:
+a key-authenticated public REST API + SSE, an MCP server, white-label
+reports under a new Business plan tier, and a self-hostable container
+image.
+
+**A real contradiction, found and resolved.** `docs/prooflight-vision-
+and-architecture.md` names white-labeling under a "Business tier" in its
+own artifact table (§11) but gives the identical feature to Studio in its
+pricing table (§14) — neither a Business tier nor a resolution of this
+conflict existed anywhere in code before this phase. Resolved by
+introducing `PlanId.BUSINESS` as a genuinely new tier (not extending
+Studio), which also happened to surface and fix a real latent bug in the
+same change: every plan now sets `api_keys_limit` explicitly (Free `0`),
+where it previously defaulted to `None` — which this codebase's own
+convention reads as *unlimited* — for a field this phase is the first to
+actually enforce.
+
+**"Client workspaces" scoped to its smallest faithful reading**: one
+`BrandingProfile` per Business-tier account, not a new `Client` sub-entity
+or a full multi-tenant sub-account system with separate logins — the
+latter would be a materially larger undertaking (new auth model, new
+tenancy boundary) that neither the vision doc's own wording nor this
+phase's scope demanded.
+
+**A deliberate naming deviation from the roadmap's literal text**: the
+roadmap says `packages/mcp`, but an MCP server is a process an MCP client
+*launches* (`apps/cli`'s `vigilo scan` precedent), not an importable
+library another package depends on — it lives at `apps/mcp`, matching
+this repo's own apps-vs-packages convention. `apps/mcp` has zero
+`vigilo_*` workspace dependencies; it's a thin `httpx` client of `apps/api`'s
+public REST API, the same relationship any third-party MCP-client
+integrator has.
+
+What shipped:
+
+**`packages/identity` extension** — `ApiKeyRow`/`BrandingProfileRow`,
+same "account-scoped auxiliary state with no more natural a home than
+`AccountRow` itself" placement rule Phase 7 established for
+`Subscription`. `create_api_key()` returns the plaintext once
+(`f"vglo_{secrets.token_urlsafe(32)}"`), matching `share_links`'
+plaintext-once/hash-at-rest pattern exactly. Migration `0007` creates both
+tables in one change (identity owns both).
+
+**`packages/security` extension** — new `rate_limit.py`, a Redis `INCR`+
+`EXPIRE` fixed-window governor (`check_rate()`). Closes `docs/security.md`'s
+long-open "Redis-backed rate governor" table entry, but narrower than that
+entry originally described: scoped to the public API's per-account request
+rate, not `resolve_authorization()`'s still-open 24h abuse ceiling or a
+per-target-host/global limit — see `docs/security.md` §9 for exactly what
+remains open.
+
+**`apps/api`** — `api_key_auth.py` (mirrors `auth.py`'s shape: hash-and-
+lookup instead of JWKS verification), `routers/api_keys.py`
+(`POST`/`GET /v1/me/api-keys`, revoke), `routers/branding.py`
+(`PUT`/`GET /v1/me/branding-profile`), and the largest new file,
+`routers/public_api.py`, mounted at `/public/v1` — a distinct prefix, not
+nested under `/v1`, keeping the session-authenticated and key-authenticated
+surfaces unambiguous. Every public-API resource lookup checks account
+ownership and 404s on mismatch, deliberately unlike some session-
+authenticated equivalents (`GET /v1/scans/{id}` is intentionally public,
+an unguessable-UUID share link by design) — a scoped API key must never
+let one caller enumerate another account's resources by guessing an id.
+`POST /public/v1/scans` reuses `resolve_authorization()`/`consume()`
+verbatim, minus the anonymous-email branch (an API key always belongs to
+somebody). The SSE endpoint polls internally (~1s) and yields on status
+change, closing at a terminal status or a 120s bound — no new pub/sub
+infrastructure.
+
+**`apps/mcp`** — new app, three `@server.tool()`-decorated functions
+(`run_scan`, `get_findings`, `get_fix_prompt`) against the official `mcp`
+SDK's `MCPServer` (the SDK renamed `FastMCP` in its 2.x line — caught by
+letting the import error's own message point at the migration guide,
+rather than trusting prior training data about the SDK's shape).
+`run_scan` submits then polls `get_scan_status` (~90s bound, 2s interval)
+rather than consuming the SSE stream from a synchronous tool-call context
+— simpler, and sufficient for a single fixed request.
+
+**`apps/web`** — `ScoreHeader` renders `report.branding`'s logo/color/
+footer in place of `brand.config.json`'s defaults when present, `null`
+otherwise (an account not on Business, or one that hasn't configured a
+profile, sees no change at all).
+
+**Self-hostable container images** — `apps/api/Dockerfile`,
+`apps/scanner/Dockerfile` (adds `playwright install --with-deps chromium`),
+`apps/web/Dockerfile` (Next.js `output: "standalone"`, a multi-stage build
+producing a `node_modules`-free runtime image), `docker-compose.self-host.yml`
+wiring all three alongside Postgres/Redis/MinIO, and `docs/self-hosting.md`.
+Verified for real, not just by review: all three images built with `docker
+build`, `apps/api`/`apps/scanner` run against real Postgres/Redis/MinIO
+inside `docker compose -f docker-compose.self-host.yml up` (confirmed
+`/healthz` returns `200`, the ARQ worker registers its seven job functions
+and connects to Redis, and Chromium actually launches inside the scanner
+image), `apps/web` runs and correctly bakes `NEXT_PUBLIC_*` build args into
+its bundle (confirmed by observing Clerk's own runtime error message
+change as each required credential was supplied). A `docker-build` CI job
+now builds all three images (no push) on every PR.
+
+**A bug found and fixed during this work**: both Python Dockerfiles
+initially used bare `uv sync --frozen`, which only installs the *root*
+project's own dependencies, not the workspace — the exact `uv sync`
+footgun this project had already hit and documented earlier in this same
+phase (`--all-packages` is required, matching local dev's `uv sync
+--all-packages` exactly). Caught by actually running the built image and
+finding `fastapi` unimportable, not by code review; fixed in both
+Dockerfiles.
+
+**Also fixed while closing out the Business tier**: `PADDLE_PRICE_ID_BUILDER`/
+`PADDLE_PRICE_ID_STUDIO` had no Business-tier counterpart —
+`create_checkout_url("business", ...)` would have raised "no Paddle price
+configured for this plan" indefinitely, since nothing in this phase's plan
+called for adding one. Added `PADDLE_PRICE_ID_BUSINESS` (config, price-id
+map, `.env.example`, tests) to close the gap — a real self-serve
+purchase path for the tier this phase introduces, not just its
+entitlements.
+
+**Done when:** every new capability is independently verified live, not
+only by test — an API key created via `POST /v1/me/api-keys` on a paid
+plan successfully authenticates `POST /public/v1/scans`, a Free-tier key
+is rejected outright (`api_keys_limit=0`), a rate-limited account gets
+`429` with `Retry-After`; the MCP server's tools are directly callable
+(confirmed `@server.tool()` returns the original function, not a wrapper)
+and exercise a real scan end to end against the public API; a Business-
+tier account's configured branding profile appears on its own reports and
+is absent from every other account's; all three Docker images build and
+run together against real infrastructure. `uv run pytest -q` (589 tests,
+up from 531 at Phase 8) and `uv run ruff check .` both green.
 
 ---
 

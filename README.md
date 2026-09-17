@@ -65,11 +65,15 @@ apps/
   ├─ web/                             # Next.js frontend (Phase 4)
   ├─ api/                             # FastAPI control plane
   ├─ cli/                             # `vigilo scan <url>`
-  └─ scanner/                         # ARQ worker (isolated network zone — the only
+  ├─ scanner/                         # ARQ worker (isolated network zone — the only
                                        #   control-plane process that imports probes);
                                        #   also owns the monitoring cron/diff job bodies
                                        #   (Phase 8 — avoids a package-level dependency
                                        #   cycle, see docs/modules.md §9)
+  └─ mcp/                             # MCP server (Phase 9) — apps/, not packages/: it's a
+                                       #   launched process (like apps/cli), not a library
+                                       #   another package imports; zero vigilo_* dependencies,
+                                       #   a thin httpx client of apps/api's public REST API
 packages/
   ├─ core/                            # models, validation, logging, errors, config
   ├─ persistence/                     # SQLAlchemy Base, async engine/session, Alembic
@@ -86,8 +90,7 @@ packages/
   ├─ reporting/                       # HTML/PDF/badge rendering (Phase 4)
   ├─ billing/                         # entitlements + quota decisions, pure (Phase 7)
   ├─ monitoring/                      # scheduling, scan diffing, alerts (Phase 8)
-  ├─ notification/                    # renders and sends alert emails (Phase 8)
-  └─ mcp/                             # MCP server (Phase 9)
+  └─ notification/                    # renders and sends alert emails (Phase 8)
 docs/
   ├─ vision.md
   ├─ architecture.md
@@ -96,11 +99,14 @@ docs/
   ├─ data-model.md
   ├─ api.md
   ├─ security.md
+  ├─ self-hosting.md                  # Phase 9
   ├─ build-roadmap.md
   └─ adr/
        ├─ ADR-0001-core-architecture.md
        ├─ ADR-0002-product-scope-and-stack.md
        └─ ADR-0003-scan-authorization-model.md
+docker-compose.yml                    # local dev infra only (postgres/redis/minio)
+docker-compose.self-host.yml          # Phase 9 — the full self-hosted stack, see docs/self-hosting.md
 brand.config.json                     # single source of truth for naming
 ```
 
@@ -197,6 +203,17 @@ uv run arq vigilo_scanner.worker.WorkerSettings   # the ARQ worker (no --app-dir
 uv run uvicorn vigilo_api.main:app --reload --app-dir apps/api/src         # the control plane
 ```
 
+**`apps/mcp`** (Phase 9 — needs a real API key, not a Clerk session):
+create one via `POST /v1/me/api-keys` on a paid-plan account (Free's
+`api_keys_limit` is `0`), then:
+
+```bash
+export VIGILO_API_BASE_URL=http://localhost:8000   # apps/api's own origin, default shown
+export VIGILO_API_KEY=vglo_...                      # the plaintext returned once at creation
+uv run vigilo-mcp                                   # stdio MCP server — point Claude
+                                                     # Desktop/an MCP inspector at this command
+```
+
 Then `curl http://localhost:8000/healthz` and `curl http://localhost:8000/version`, or
 `curl -X POST http://localhost:8000/v1/scans -d '{"target_url":"https://example.com","email":"you@example.com"}'`
 for the full anonymous-scan flow (needs the worker running to actually complete).
@@ -228,7 +245,44 @@ Stop the local infra with `docker compose down` when done.
 
 ---
 
+## Self-hosting
+
+Vigilo also ships as three container images
+(`apps/api`/`apps/scanner`/`apps/web`) you can run on your own
+infrastructure instead of using the hosted product — see
+`docs/self-hosting.md` for the full build/run instructions and required
+environment variables.
+
+---
+
 ## Status
+
+**Phase 9 (Distribution, scoped) complete.** Vigilo is programmatically
+reachable now, not only through the web app: a key-authenticated public
+REST API + SSE (`/public/v1/*`, scoped by `scan:run`/`scan:read`/
+`project:read`/`report:read`/`monitor:read`/`monitor:write`, rate-limited
+per account) and an MCP server (`apps/mcp`, `uv run vigilo-mcp`) exposing
+`run_scan`/`get_findings`/`get_fix_prompt` as tools — "the user fixes the
+finding without leaving their editor," built for real. A new **Business**
+plan tier adds white-label reports (a `BrandingProfile`'s logo/color/
+footer on both the report page and share links) — introduced to resolve a
+real contradiction between two sections of the vision doc about which
+tier owns this feature, which also surfaced and fixed a latent bug:
+`api_keys_limit` was silently unlimited on every plan (including Free)
+until this phase gave every plan an explicit value. Three self-hostable
+container images (`apps/api`/`apps/scanner`/`apps/web`, Next.js's
+`output: "standalone"` mode for the web image) plus
+`docker-compose.self-host.yml` ship this phase too, built and run
+end-to-end against real infrastructure during verification, not only
+reviewed — see `docs/self-hosting.md`. The roadmap's fifth Phase 9
+initiative, a read-only repository connector, is explicitly deferred to
+its own future phase: research during planning found it's a wholly new
+subsystem (GitHub auth, a new evidence source, new scanning logic)
+comparable in size to Phase 7 or 8 by itself, not a natural extension of
+anything else this phase built. See `docs/build-roadmap.md`'s Phase 9
+entry for the full account, including a `uv sync --frozen` footgun this
+project had already documented once and then re-hit while writing the
+new Dockerfiles, caught and fixed the same way (`--all-packages`).
 
 **Phase 8 (Monitoring) complete — built in full, not scoped down.** Vigilo
 is continuous now: a scheduler (`packages/monitoring`, an ARQ cron job
@@ -373,12 +427,12 @@ process that talks to a target, enforced by a static import-boundary test.
 storage). Both Phase 3 exit criteria run end to end locally against real
 Postgres/Redis/MinIO.
 
-Still ahead: distribution — a rate-limited, key-authenticated public REST
-API distinct from today's session-authenticated one, outbound alert
-webhooks, and an MCP server exposing `run_scan`/`get_findings`/
-`get_fix_prompt` as tools — see `docs/build-roadmap.md` for what's next.
-All documents in `/docs` are authoritative for implementation and must be
-updated by the responsible agent whenever behaviour changes.
+Still ahead: a read-only repository connector (secret and dependency
+scanning, scored separately from the live-site score, explicitly deferred
+out of Phase 9 to its own future phase) and outbound alert webhooks (email
+remains the only delivery channel) — see `docs/build-roadmap.md` for what's
+next. All documents in `/docs` are authoritative for implementation and
+must be updated by the responsible agent whenever behaviour changes.
 
 ## Licence
 
