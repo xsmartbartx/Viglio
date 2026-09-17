@@ -23,6 +23,7 @@ def _paddle_configured(monkeypatch):
     monkeypatch.setenv("PADDLE_WEBHOOK_SECRET", _SECRET)
     monkeypatch.setenv("PADDLE_PRICE_ID_BUILDER", "pri_builder")
     monkeypatch.setenv("PADDLE_PRICE_ID_STUDIO", "pri_studio")
+    monkeypatch.setenv("PADDLE_PRICE_ID_BUSINESS", "pri_business")
     config.cache_clear()
     yield
     config.cache_clear()
@@ -74,6 +75,11 @@ def test_create_checkout_url_builds_a_paddle_url():
     assert url.startswith("https://checkout.paddle.com/checkout?")
     assert "product=pri_builder" in url
     assert "owner%40example.com" in url
+
+
+def test_create_checkout_url_builds_a_paddle_url_for_business():
+    url = create_checkout_url("business", "owner@example.com", "account-ref-123")
+    assert "product=pri_business" in url
 
 
 def test_create_checkout_url_raises_when_vendor_id_unset(monkeypatch):
