@@ -13,7 +13,10 @@ WORKDIR /app
 COPY . .
 
 ENV UV_NO_DEV=1
-RUN uv sync --frozen
+# Bare `uv sync` only installs the root project's own deps, not the
+# workspace — --all-packages is required, matching local dev's own
+# `uv sync --all-packages` exactly (see this Dockerfile's top comment).
+RUN uv sync --frozen --all-packages
 
 EXPOSE 8000
 CMD ["uv", "run", "uvicorn", "vigilo_api.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "apps/api/src"]

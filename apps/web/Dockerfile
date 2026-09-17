@@ -35,11 +35,14 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-# outputFileTracingRoot nests the standalone output under its monorepo-relative
-# path (apps/web/server.js, not server.js) — same reasoning as
-# next.config.ts's comment. .next/static and public/ aren't part of the
-# trace and must be copied in by hand (Next's own documented instruction).
-COPY --from=builder /app/.next/standalone ./
+# `next build` writes .next relative to its CWD (apps/web), not the
+# outputFileTracingRoot — but outputFileTracingRoot nests the standalone
+# output's own internal layout under its monorepo-relative path
+# (.next/standalone/apps/web/server.js, not .../standalone/server.js), same
+# reasoning as next.config.ts's comment. .next/static and public/ aren't
+# part of the trace and must be copied in by hand (Next's own documented
+# instruction).
+COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
