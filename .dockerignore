@@ -1,0 +1,29 @@
+# Platform-specific virtual environments/build output must never be baked
+# into an image — each Dockerfile creates its own inside the container
+# (docs.astral.sh/uv's Docker guide: ".venv should never be copied in").
+.venv/
+node_modules/
+.next/
+apps/web/.next/
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.uv-cache/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+.env
+.env.*
+!.env.example
+
+.git/
+.github/
+docs/
+*.md
+.claude/
