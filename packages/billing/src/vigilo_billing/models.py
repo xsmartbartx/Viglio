@@ -13,22 +13,28 @@ class PlanId(StrEnum):
     FREE = "free"
     BUILDER = "builder"
     STUDIO = "studio"
+    BUSINESS = "business"
 
 
 class Meter(StrEnum):
     TARGETS = "targets"
     SCANS_MONTHLY = "scans_monthly"
     MONITORS = "monitors"
+    API_KEYS = "api_keys"
 
 
 @dataclass(frozen=True)
 class Plan:
     """One subscription plan's static entitlements
     (docs/prooflight-vision-and-architecture.md §14). `None` on a limit
-    field means unlimited. `api_keys_limit`/`repo_connectors_limit` are
-    Phase 9-shaped but unenforced — no API key or repo connector exists yet
-    to restrict. `monitoring_frequency`/`monitors_limit` were the same
-    (Phase 8-shaped, unenforced) until Phase 8 wired them up."""
+    field means unlimited — every plan must set `api_keys_limit`
+    explicitly rather than relying on that default, since leaving it unset
+    on a free-tier plan would silently mean "unlimited API keys," not
+    "none" (a real, fixed Phase 9 bug: it was left at this dataclass
+    default on Free until API keys were actually enforced).
+    `repo_connectors_limit` remains Phase-shaped-but-unenforced — no repo
+    connector exists yet to restrict (deferred, `docs/build-roadmap.md`'s
+    Phase 9 entry)."""
 
     plan_id: PlanId
     targets_limit: int | None
@@ -38,6 +44,8 @@ class Plan:
     monitoring_frequency: str | None = None
     monitors_limit: int | None = None
     api_keys_limit: int | None = None
+    api_rate_limit_per_minute: int | None = None
+    white_label_allowed: bool = False
     repo_connectors_limit: int | None = None
 
 

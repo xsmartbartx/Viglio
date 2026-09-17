@@ -13,6 +13,7 @@ _LIMIT_FIELD: dict[Meter, str] = {
     Meter.TARGETS: "targets_limit",
     Meter.SCANS_MONTHLY: "scans_per_month_limit",
     Meter.MONITORS: "monitors_limit",
+    Meter.API_KEYS: "api_keys_limit",
 }
 
 

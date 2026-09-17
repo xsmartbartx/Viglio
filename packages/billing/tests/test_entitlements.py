@@ -13,6 +13,8 @@ def test_free_plan_entitlements():
     assert result.share_links_allowed is False
     assert result.monitoring_frequency is None
     assert result.monitors_limit == 0
+    assert result.api_keys_limit == 0
+    assert result.white_label_allowed is False
 
 
 def test_builder_plan_entitlements():
@@ -24,6 +26,9 @@ def test_builder_plan_entitlements():
     assert result.share_links_allowed is True
     assert result.monitoring_frequency == "weekly"
     assert result.monitors_limit == 3
+    assert result.api_keys_limit == 1
+    assert result.api_rate_limit_per_minute == 60
+    assert result.white_label_allowed is False
 
 
 def test_studio_plan_has_unlimited_scans():
@@ -33,6 +38,20 @@ def test_studio_plan_has_unlimited_scans():
     assert result.scans_per_month_limit is None
     assert result.monitoring_frequency == "daily+custom"
     assert result.monitors_limit == 25
+    assert result.white_label_allowed is False
+
+
+def test_business_plan_is_the_only_plan_with_white_label_allowed():
+    result = entitlements("business")
+    assert result.plan_id == PlanId.BUSINESS
+    assert result.targets_limit == 100
+    assert result.scans_per_month_limit is None
+    assert result.white_label_allowed is True
+    assert result.api_keys_limit == 100
+    assert result.api_rate_limit_per_minute == 1000
+
+    for plan_id in ("free", "builder", "studio"):
+        assert entitlements(plan_id).white_label_allowed is False
 
 
 def test_none_plan_id_defaults_to_free():

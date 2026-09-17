@@ -59,3 +59,16 @@ def test_consume_allows_monitors_up_to_the_builder_limit():
     builder = entitlements("builder")  # monitors_limit = 3
     decision = consume(current_usage=2, amount=1, meter=Meter.MONITORS, entitlements=builder)
     assert decision.allowed is True
+
+
+def test_consume_denies_any_api_key_on_the_free_plan():
+    free = entitlements("free")  # api_keys_limit = 0
+    decision = consume(current_usage=0, amount=1, meter=Meter.API_KEYS, entitlements=free)
+    assert decision.allowed is False
+    assert decision.limit == 0
+
+
+def test_consume_allows_api_keys_up_to_the_business_limit():
+    business = entitlements("business")  # api_keys_limit = 100
+    decision = consume(current_usage=99, amount=1, meter=Meter.API_KEYS, entitlements=business)
+    assert decision.allowed is True
