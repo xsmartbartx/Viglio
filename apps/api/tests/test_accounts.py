@@ -26,7 +26,10 @@ async def test_get_me_returns_the_authenticated_account(client):
         "active_tier_allowed": False,
         "share_links_allowed": False,
         "monitoring_frequency": None,
-        "api_keys_limit": None,
+        "monitors_limit": 0,
+        "api_keys_limit": 0,
+        "api_rate_limit_per_minute": None,
+        "white_label_allowed": False,
         "repo_connectors_limit": None,
     }
 

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 
 from vigilo_api.deps import AccountDep, SessionDep
-from vigilo_api.report_rendering import render_scan_report
+from vigilo_api.report_rendering import get_branding_for_target, render_scan_report
 from vigilo_api.schemas import (
     ScanReportResponse,
     ShareLinkCreate,
@@ -149,6 +149,7 @@ async def resolve_share(token: str, session: SessionDep) -> ScanReportResponse:
     target = await get_target(session, scan.target_id)
     findings = await get_findings_for_scan(session, scan.id)
     response = await render_scan_report(session, target.origin if target else "", scan, findings)
+    response.branding = await get_branding_for_target(session, scan.target_id)
 
     await record_share_link_view(session, link.id)
     return response
