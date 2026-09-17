@@ -201,3 +201,25 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+
+  # Phase 9 (docs/self-hosting.md): a broken Dockerfile should fail CI, not
+  # surface for the first time when a self-hoster tries to build one. Builds
+  # only — no registry push, no credentials needed. apps/web's build args
+  # are left unset (their real values are only needed for a working runtime
+  # container, not for `next build` to succeed — see apps/web/Dockerfile's
+  # own comment on NEXT_PUBLIC_* being build-time-only).
+  docker-build:
+    name: Docker image build (api, scanner, web)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: [api, scanner, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.image }}/Dockerfile
+          push: false
+          tags: vigilo-${{ matrix.image }}:ci

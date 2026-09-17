@@ -32,6 +32,7 @@ flowchart TD
     NOTIFY[notification]
     BILLING[billing]
     API[api]
+    MCP[mcp]
 
     CORE --> PERSIST
     CORE --> SEC
@@ -70,6 +71,7 @@ flowchart TD
     CORE --> BILLING
     BILLING --> API
     INTEG --> API
+    API -.->|HTTP, not import| MCP
 ```
 
 Cycles are prohibited and enforced by an import-graph check in CI.
