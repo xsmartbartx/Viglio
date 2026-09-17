@@ -198,7 +198,9 @@ async def revoke_api_key(session: AsyncSession, api_key_id: uuid.UUID) -> ApiKey
     return ApiKey.model_validate(row)
 
 
-async def mark_api_key_used(session: AsyncSession, api_key_id: uuid.UUID, used_at: datetime) -> None:
+async def mark_api_key_used(
+    session: AsyncSession, api_key_id: uuid.UUID, used_at: datetime
+) -> None:
     row = await session.get(ApiKeyRow, api_key_id)
     if row is not None:
         row.last_used_at = used_at
@@ -217,7 +219,9 @@ async def count_api_keys_for_account(session: AsyncSession, account_id: uuid.UUI
     return result.scalar_one()
 
 
-async def get_branding_profile(session: AsyncSession, account_id: uuid.UUID) -> BrandingProfile | None:
+async def get_branding_profile(
+    session: AsyncSession, account_id: uuid.UUID
+) -> BrandingProfile | None:
     result = await session.execute(
         select(BrandingProfileRow).where(BrandingProfileRow.account_id == account_id)
     )
@@ -248,4 +252,9 @@ async def upsert_branding_profile(
     row.custom_domain = custom_domain
 
     await session.flush()
+    # `updated_at`'s server-side onupdate=func.now() isn't known to the
+    # ORM object after an UPDATE (only INSERT gets it for free via
+    # RETURNING) — refresh so model_validate() never lazy-loads it
+    # outside an async context.
+    await session.refresh(row)
     return BrandingProfile.model_validate(row)
