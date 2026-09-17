@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from redis.asyncio import Redis
 
+from vigilo_api.routers.public_api import scan_status_events
 from vigilo_core.config import config
 from vigilo_core.models import Confidence, Finding, Score, Severity, Tier, Verdict
 from vigilo_identity.repository import (
@@ -235,9 +236,39 @@ async def test_public_api_rate_limit_returns_429_with_retry_after(client):
         await redis.aclose()
 
 
-async def test_public_scan_stream_returns_an_event_stream(client):
+async def test_scan_status_events_yields_on_every_status_change(client):
+    """Unit-tests `scan_status_events()` directly rather than through the
+    full HTTP/ASGI stack — httpx's `ASGITransport` buffers a streaming
+    response until the generator itself finishes, so a real request
+    through `client` can't observe incremental yields without waiting out
+    `max_seconds` regardless of how quickly they actually happen. `client`
+    is unused directly but its fixture is what provisions the schema this
+    test writes to."""
+    account, raw_key = await _create_account_and_key(
+        "public-stream@example.com", "builder", ["scan:run"]
+    )
+    async with session_scope() as session:
+        project = await get_or_create_default_project(session, account.id)
+        target = await create_target(session, project.id, "https://example.com")
+        job = await create_scan_job(session, target.id, Tier.PASSIVE, account.email, "0.1")
+        job = await advance(session, job.id, "authorized")
+
+        events = [
+            line async for line in scan_status_events(session, job.id, 0.01, 0.05)
+        ]
+
+    assert len(events) >= 1
+    assert '"status": "authorized"' in events[0]
+
+
+async def test_public_scan_stream_endpoint_returns_the_right_content_type(client, monkeypatch):
+    import vigilo_api.routers.public_api as public_api_module
+
+    monkeypatch.setattr(public_api_module, "_STREAM_MAX_SECONDS", 0.05)
+    monkeypatch.setattr(public_api_module, "_STREAM_POLL_SECONDS", 0.01)
+
     _account, raw_key = await _create_account_and_key(
-        "public-stream@example.com", "builder", ["scan:run", "scan:read"]
+        "public-stream-http@example.com", "builder", ["scan:run", "scan:read"]
     )
     create_response = await client.post(
         "/public/v1/scans",
@@ -246,12 +277,10 @@ async def test_public_scan_stream_returns_an_event_stream(client):
     )
     scan_job_id = create_response.json()["scan_job_id"]
 
-    async with client.stream(
-        "GET", f"/public/v1/scans/{scan_job_id}/stream", headers=_auth(raw_key)
-    ) as response:
-        assert response.status_code == 200
-        assert response.headers["content-type"].startswith("text/event-stream")
-        async for line in response.aiter_lines():
-            if line.startswith("data:"):
-                assert "status" in line
-                break
+    response = await client.get(
+        f"/public/v1/scans/{scan_job_id}/stream", headers=_auth(raw_key)
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "authorized" in response.text

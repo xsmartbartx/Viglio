@@ -217,28 +217,42 @@ async def public_get_scan_status(
     )
 
 
+async def scan_status_events(
+    session: SessionDep,
+    scan_job_id: uuid.UUID,
+    poll_seconds: float,
+    max_seconds: float,
+):
+    """The SSE generator, extracted as its own named, directly-testable
+    function — a plain unit test can exhaust it without going through the
+    ASGI/HTTP layer, which (at least with httpx's `ASGITransport`) buffers
+    a streaming response until the generator finishes rather than yielding
+    incrementally, making `max_seconds`/`poll_seconds` the only levers a
+    real HTTP-level test has to keep itself fast."""
+    last_status: str | None = None
+    elapsed = 0.0
+    while elapsed < max_seconds:
+        job = await get_scan_job(session, scan_job_id)
+        if job is None:
+            break
+        if job.status != last_status:
+            last_status = job.status
+            yield f"data: {json.dumps({'status': job.status})}\n\n"
+        if job.status in TERMINAL_STATUSES:
+            break
+        await asyncio.sleep(poll_seconds)
+        elapsed += poll_seconds
+
+
 @router.get("/scans/{scan_job_id}/stream")
 async def public_stream_scan_status(
     scan_job_id: uuid.UUID, session: SessionDep, account: ScanReadDep
 ) -> StreamingResponse:
     await _owned_scan_job(session, account, scan_job_id)
-
-    async def events():
-        last_status: str | None = None
-        elapsed = 0.0
-        while elapsed < _STREAM_MAX_SECONDS:
-            job = await get_scan_job(session, scan_job_id)
-            if job is None:
-                break
-            if job.status != last_status:
-                last_status = job.status
-                yield f"data: {json.dumps({'status': job.status})}\n\n"
-            if job.status in TERMINAL_STATUSES:
-                break
-            await asyncio.sleep(_STREAM_POLL_SECONDS)
-            elapsed += _STREAM_POLL_SECONDS
-
-    return StreamingResponse(events(), media_type="text/event-stream")
+    return StreamingResponse(
+        scan_status_events(session, scan_job_id, _STREAM_POLL_SECONDS, _STREAM_MAX_SECONDS),
+        media_type="text/event-stream",
+    )
 
 
 @router.get("/scans/{scan_job_id}/report", response_model=ScanReportResponse)
