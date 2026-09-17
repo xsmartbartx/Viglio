@@ -1,0 +1,23 @@
+[project]
+name = "vigilo-mcp"
+version = "0.1.0"
+description = "Vigilo MCP server: run_scan/get_findings/get_fix_prompt as MCP tools"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = [
+    "mcp>=2.0",
+    "httpx>=0.28",
+]
+
+[project.scripts]
+vigilo-mcp = "vigilo_mcp.server:main"
+
+[dependency-groups]
+dev = ["pytest-asyncio>=0.24"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vigilo_mcp"]

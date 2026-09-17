@@ -37,6 +37,7 @@ src = [
     "apps/api/src",
     "apps/cli/src",
     "apps/scanner/src",
+    "apps/mcp/src",
 ]
 
 [tool.ruff.lint]
@@ -108,4 +109,5 @@ testpaths = [
     "apps/api/tests",
     "apps/cli/tests",
     "apps/scanner/tests",
+    "apps/mcp/tests",
 ]
