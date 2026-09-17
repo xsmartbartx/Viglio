@@ -96,6 +96,24 @@ monitors/badge routers (§9) are the first place `apps/api` imports
 (§10), so it needs `integrations` directly, exactly as originally sketched
 — no deviation there, unlike `billing`.
 
+`mcp` (Phase 9, §13) is drawn dotted and unconnected to every other node on
+purpose: it is an `apps/*` peer of `apps/api`, not a package any other
+`vigilo_*` module imports or is imported by (`apps/mcp/pyproject.toml`
+declares no `vigilo_*` workspace dependency at all — confirmed by `uv sync
+--all-packages` producing zero `packages/*`/`apps/api`/`apps/scanner`
+entries for it). It reaches `api` only as an HTTP client of the public REST
+API at runtime, the same relationship any third-party MCP-client integrator
+has — hence the dotted, non-import edge, which is documentation only and
+not something the import-boundary tests below check (there is nothing to
+import-check: `apps/mcp` has no dependency on this codebase's own packages
+to violate).
+
+`packages/security` gained a `redis` dependency in Phase 9 (`rate_limit.py`,
+§2) — not drawn above since this graph is Vigilo-internal packages only;
+`arq` (already a `packages/orchestrator`/`apps/scanner` dependency) wraps
+the same underlying client library, so this isn't a new *service*
+dependency for any deployment, only a new direct import for `security`.
+
 ---
 
 ## 1. core
@@ -227,6 +245,20 @@ get_account_by_email(session, email) -> Account | None
 get_subscription_by_account(session, account_id) -> Subscription | None
 upsert_subscription(session, account_id, plan_id, status, provider,
                      provider_subscription_id, current_period_end) -> Subscription
+
+# Phase 9 — API keys and white-label branding:
+hash_api_key(raw_key: str) -> str                    # sha256 hex digest; the one
+                                                       # hashing implementation both
+                                                       # creation and lookup call
+create_api_key(session, account_id, name, scopes) -> tuple[ApiKey, str]  # str: plaintext, once
+get_api_key_by_hash(session, key_hash) -> ApiKey | None
+list_api_keys_for_account(session, account_id) -> list[ApiKey]
+revoke_api_key(session, api_key_id) -> ApiKey
+mark_api_key_used(session, api_key_id) -> None
+count_api_keys_for_account(session, account_id) -> int   # live COUNT, feeds Meter.API_KEYS
+get_branding_profile(session, account_id) -> BrandingProfile | None
+upsert_branding_profile(session, account_id, logo_url=None, primary_color=None,
+                         footer_text=None, custom_domain=None) -> BrandingProfile
 ```
 
 **Persistence (Phase 7).** `SubscriptionRow` (`docs/data-model.md`'s
@@ -240,6 +272,14 @@ paid entitlements forever, since `vigilo_billing.entitlements()` only ever
 reads `Account.plan_id`, never `Subscription.status` directly. Same
 same-transaction-cascade pattern `mark_proof_verified()` already established
 for `Target.verification_status` (`packages/project`).
+
+**Persistence (Phase 9).** `ApiKeyRow`/`BrandingProfileRow`
+(`docs/data-model.md`'s `api_keys`/`branding_profiles` tables) live here
+too, same rationale as `SubscriptionRow` above: account-scoped auxiliary
+state with no more natural a home than `AccountRow` itself, not a new
+package. `ApiKey`'s Pydantic model deliberately omits `key_hash` — a
+`model_validate()` call can never leak it, unlike `Subscription`/
+`BrandingProfile`, which have no comparably sensitive field to omit.
 
 **Dependencies.** core, persistence.
 
@@ -747,6 +787,22 @@ scans do **not** consume `SCANS_MONTHLY` — `monitors_limit` is the only
 cost bound on monitoring, checked once at monitor-creation time
 (`docs/build-roadmap.md`'s Phase 8 entry has the full reasoning).
 
+**Meters and Business tier (Phase 9 addition).** `Meter` gained
+`API_KEYS`, and `Plan` gained `api_rate_limit_per_minute: int | None` and
+`white_label_allowed: bool = False`. A new `PlanId.BUSINESS` tier
+(`targets_limit=100, monitors_limit=100, api_keys_limit=100,
+api_rate_limit_per_minute=1000, white_label_allowed=True`, plus
+`repo_connectors_limit=50` set for forward-compat only — the connector
+feature itself remains deferred, `docs/build-roadmap.md`'s Phase 9 entry)
+resolves a contradiction between two sections of
+`docs/prooflight-vision-and-architecture.md`: §11's artifact table named a
+"Business tier" for white-labeling that didn't exist in code; §14's
+pricing table gave the same feature to Studio instead. Phase 9 introduces
+the tier rather than extending Studio — this also fixed a latent bug in
+the same change: every plan's `api_keys_limit` is now set explicitly
+(Free `0`), where it previously defaulted to `None`, which this codebase's
+own convention reads as *unlimited*.
+
 **Deviation (Phase 7).** The API above differs from the sketch this section
 originally carried in two ways, both matching the precedent Phase 3 set for
 `resolve_authorization` (`packages/security`) and Phase 4 for `build_report`
@@ -793,7 +849,11 @@ attack-surface framing.
 
 ## 12. api
 
-**Responsibility.** The HTTP surface: web app backend, public API, MCP backend, SSE stream.
+**Responsibility.** The HTTP surface: web app backend (session-authenticated,
+`/v1/*`) and a key-authenticated public REST API + SSE (`/public/v1/*`,
+Phase 9). Not an MCP backend itself — `apps/mcp` (§13) is a separate
+process that calls this module's public API as an ordinary HTTP client;
+nothing here speaks MCP's own protocol.
 
 **Boundaries.** No domain logic. Every handler validates, delegates to one module, and
 serialises the result. Must never import `probes` (or `orchestrator.jobs`, or the
@@ -806,16 +866,83 @@ Phase 4 adds direct dependencies on `checks` (the pure, I/O-free `REGISTRY` —
 `report_rendering.py` builds a `CheckManifest` lookup for remediation text/
 references/category, doesn't weaken the egress-import guard below) and
 `reporting` (`build_report`/`render_badge`). Phase 8 adds `monitoring`
-(the new monitors/scores/alerts/badge routers, §9).
+(the new monitors/scores/alerts/badge routers, §9). Phase 9 adds `security`'s
+new `check_rate()` (the public API's per-account rate limiter, §2) — `api`
+already depended on `security` for `resolve_authorization`, so this is not
+a new edge, only a new function called from it.
+
+**Public API auth model (Phase 9).** `api_key_auth.py` mirrors `auth.py`'s
+shape: `require_api_key` hashes the presented key
+(`vigilo_identity.hash_api_key`), looks it up, 401s if unknown/revoked, and
+stamps `last_used_at`; `require_scope(scope)` is a dependency factory that
+403s if the key lacks the scope and enforces
+`entitlements(account.plan_id).api_rate_limit_per_minute` via
+`check_rate()`, keyed **per account** (one shared budget across all of an
+account's keys, not one budget per key — the vision doc's "rate limits per
+plan" read literally). Public-API resource lookups (`GET
+/public/v1/scans/{id}` and friends) enforce ownership and 404 on mismatch,
+deliberately unlike the session-authenticated `GET /v1/scans/{id}`, which
+is intentionally public/unguessable-UUID-based — a scoped API key must not
+let one caller enumerate another account's resources by guessing an id.
 
 **Security.** Authentication on every route that isn't explicitly public
 (`POST /v1/scans`, `GET /v1/scans/{id}`, `GET /v1/scans/{id}/report`, the PDF
 routes, `GET /v1/share/{token}`, `GET /badge/{target_id}.svg`,
 `POST /v1/billing/webhook` — see `api.md`). Request schema
 validation before dispatch. Response schema validation before release.
-Per-key rate limits (Phase 9's public API; Phase 3's session-authenticated
-surface uses a minimal scan-count ceiling instead, see `security.md` §3).
-Full detail: `api.md`.
+Per-account rate limits on the public API (Phase 9, above); Phase 3's
+session-authenticated surface uses a minimal scan-count ceiling instead,
+see `security.md` §3). Full detail: `api.md`.
+
+---
+
+## 13. mcp
+
+**Status: implemented, Phase 9.**
+
+**Responsibility.** A Model Context Protocol server exposing scan
+capability to MCP-aware clients (Claude Desktop, IDE integrations) —
+"a genuine distribution channel... the user fixes the finding without
+leaving their editor" (the vision doc's own framing).
+
+**Boundaries.** No domain logic, no database access, no direct dependency
+on any `vigilo_*` package. It is a thin `httpx` client of `apps/api`'s
+public REST API (`/public/v1/*`) — everything it does, an external
+integrator could do with the same API key and the same endpoints. A
+deliberate naming deviation from `docs/build-roadmap.md`'s literal
+`packages/mcp`: an MCP server is a process an MCP client *launches*
+(`apps/cli`'s `vigilo scan` precedent), not an importable library another
+package depends on, so it belongs at `apps/mcp`, matching this repo's own
+apps-vs-packages convention.
+
+**API** (`apps/mcp/src/vigilo_mcp/`)
+
+```python
+# client.py — thin httpx wrapper, reads VIGILO_API_BASE_URL/VIGILO_API_KEY
+submit_scan(target_url, requested_tier="passive", transport=None) -> dict
+get_scan_status(scan_job_id, transport=None) -> dict
+get_scan_report(scan_job_id, transport=None) -> dict
+get_scan_findings(scan_job_id, transport=None) -> list[dict]
+
+# server.py — @server.tool()-decorated, registered on an `MCPServer(name="vigilo")`
+run_scan(target_url, requested_tier="passive") -> dict
+    # submits, then polls get_scan_status up to ~90s at 2s intervals;
+    # returns the full report once terminal, or a "still running" message
+    # if the bound is hit — simpler than consuming the public API's SSE
+    # stream from a synchronous tool-call context.
+get_findings(scan_job_id) -> list[dict]
+get_fix_prompt(scan_job_id, check_id) -> str   # a single finding's remediation.agent_prompt
+```
+
+**Dependencies.** None on this codebase's own packages (see the dotted,
+disconnected graph node above) — only the third-party `mcp` SDK and
+`httpx`.
+
+**Security.** Holds one `VIGILO_API_KEY` per deployment, scoped exactly
+like any other API key (`docs/api.md`'s scopes table) — an MCP client can
+do nothing the key's own scopes and rate limit don't already allow. No
+credential ever reaches the target being scanned; this module never makes
+an outbound request to anything but `apps/api`'s own public endpoint.
 
 ---
 

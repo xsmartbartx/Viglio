@@ -12,7 +12,10 @@ below) — the rate governor and abuse heuristics remain future work (§2).
 **Phase 5** adds the LLM prompt boundary (§6) — the first place an
 untrusted, target-controlled string reaches a third-party model. Redaction
 (`redact()`) is implemented in `packages/core`, not here, since it has no
-I/O and no security *decision* to make — see `docs/modules.md` §1.
+I/O and no security *decision* to make — see `docs/modules.md` §1. **Phase 9**
+adds the public API's Redis-backed rate limiter and the API key storage
+model (§9) — a first, narrower-than-originally-described implementation of
+§2's long-open rate-governor entry.
 
 ---
 
@@ -67,7 +70,7 @@ still deny), and a redirect-into-internal-space case.
 
 | Concern | Where it will live | Blocked on |
 | --- | --- | --- |
-| Rate governor (per-account, per-target-host, global, Redis-backed) | `packages/security` | Still open after Phase 7 — Phase 3 added a minimal ceiling check inside `resolve_authorization()` (§3), but the caller (`apps/api/src/vigilo_api/routers/scans.py`) still hardcodes `recent_scan_count_24h=0` on every call rather than computing a real count from the database, so the ceiling never actually triggers yet. Found during Phase 6 (which fixed the analogous hardcoded-tier gap in the same function, see the ADR-0003 Phase 6 addendum). Phase 7 added a *separate*, plan-scoped monthly scan quota (`vigilo_billing`'s `SCANS_MONTHLY` meter, `docs/modules.md` §11) but deliberately left this 24h abuse ceiling alone — different concern (abuse rate vs. plan entitlement), not in scope either phase. |
+| `resolve_authorization()`'s 24h abuse ceiling (per-account, per-target-host, global) | `packages/security` | **Narrowed, not closed, by Phase 9** — Phase 9 added a Redis-backed rate governor (§9), but scoped to the key-authenticated public API's per-account request rate, a different concern from this row. The caller (`apps/api/src/vigilo_api/routers/scans.py`) still hardcodes `recent_scan_count_24h=0` on every call rather than computing a real count from the database, so `resolve_authorization()`'s own ceiling still never triggers. Found during Phase 6 (which fixed the analogous hardcoded-tier gap in the same function, see the ADR-0003 Phase 6 addendum). Phase 7 added a *separate*, plan-scoped monthly scan quota (`vigilo_billing`'s `SCANS_MONTHLY` meter, `docs/modules.md` §11) but deliberately left this 24h abuse ceiling alone — different concern (abuse rate vs. plan entitlement), not in scope any phase yet. |
 | Abuse heuristics (enumeration patterns, target churn) | `packages/security` | Scan history to detect patterns against (Phase 3+) |
 | Redirect same-registrable-domain restriction | `packages/security/egress_guard.py` | Public-suffix-list dependency (Phase 1) |
 | Worker network isolation (the scan zone has no route to internal services) | Deployment topology, not application code | Phase 1 deployment target |
@@ -272,9 +275,47 @@ applied here to outbound email instead of an outbound model call. Every
 alert links to the monitoring dashboard (an authenticated page), never
 directly to a finding's evidence panel.
 
+---
+
+## 9. Public API rate limiting and API key storage (Phase 9)
+
+**Status: implemented, `packages/security/src/vigilo_security/rate_limit.py`,
+`apps/api/src/vigilo_api/api_key_auth.py`, `packages/identity`.**
+
+**Rate limiting.** `check_rate(redis, key, limit, window_seconds=60)` is a
+Redis `INCR`+`EXPIRE` fixed-window counter — closes §2's long-open
+"Redis-backed rate governor" entry, but **scoped to the key-authenticated
+public API only** (`/public/v1/*`), not §3's authorization-time ceiling or
+a per-target-host/global limit; see §2's row above for exactly what
+remains open. `require_scope()` (`api_key_auth.py`) calls it keyed by
+`f"ratelimit:{account.id}"` — one shared budget per **account**, not per
+individual key, per `entitlements(plan_id).api_rate_limit_per_minute`
+(Free has no key access at all, so no limit applies; paid tiers range
+60-1000/minute, `docs/modules.md` §11). `limit=None` always allows,
+matching `vigilo_billing.consume()`'s own "`None` means unlimited"
+convention rather than inventing a second one. A denial returns `429` with
+a `Retry-After` header (`decision.retry_after_seconds`), letting a
+well-behaved client back off without guessing.
+
+**API key storage.** An API key's plaintext (`f"vglo_{secrets.token_urlsafe(32)}"`,
+~256 bits of entropy) is returned exactly once, at creation
+(`POST /v1/me/api-keys`), and never persisted or logged — only
+`sha256(plaintext).hexdigest()` is (`api_keys.key_hash`,
+`docs/data-model.md`), the same hash-only-at-rest posture `share_links`
+already established for its own bearer token, and for the same reason:
+the token already carries enough entropy that a slow KDF would add cost
+without adding real resistance. `hash_api_key()` is the single
+implementation both key creation and `require_api_key()`'s lookup call, so
+there is exactly one place this hashing logic could drift. `ApiKey`'s
+Pydantic response model (`packages/identity/src/vigilo_identity/models.py`)
+omits `key_hash` entirely — a `model_validate()` call against the ORM row
+structurally cannot leak it, not merely a serializer that remembers to
+exclude it.
+
 ## References
 
 ADR-0001, ADR-0002, ADR-0003 (including its Phase 3 addendum), ADR-0004,
 `docs/architecture.md` §7 and §15 (numbered as such in
 `docs/prooflight-vision-and-architecture.md`), `docs/modules.md` §2, §2a, §2b,
-§9, §10, §11, `docs/data-model.md`.
+§9, §10, §11, §12, §13, `docs/data-model.md`, `docs/api.md`'s public API
+section.

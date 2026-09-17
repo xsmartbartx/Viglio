@@ -22,8 +22,9 @@ register ("caching by fingerprint") require one. Phase 7 adds
 `subscriptions`. Phase 8 adds `monitors`/`alerts` (named `MonitorSchedule`/
 `Alert` in the domain model) but does *not* add a `ScoreSnapshot` table —
 score history reads `scans` directly instead (see "Deferred entities"
-below). `ApiKey` and a standalone `Evidence` table remain deferred to
-Phase 9.
+below). Phase 9 adds `api_keys` and `branding_profiles` (the domain
+model's `ApiKey`, plus a new entity the domain model doesn't name — see
+that section below). A standalone `Evidence` table remains deferred.
 
 ---
 
@@ -55,7 +56,7 @@ email, regardless of which path created it first.
 | --- | --- | --- |
 | `id` | UUID, PK | |
 | `account_id` | UUID, FK `accounts.id`, indexed | |
-| `plan_id` | varchar(64) | `free` \| `builder` \| `studio` (`vigilo_billing.PlanId`) |
+| `plan_id` | varchar(64) | `free` \| `builder` \| `studio` \| `business` (`vigilo_billing.PlanId`) |
 | `status` | varchar(16) | `active` \| `canceled` |
 | `provider` | varchar(32) | `paddle` today — provider-agnostic column, only one provider implemented |
 | `provider_subscription_id` | varchar(128), unique | The provider's own subscription id. **Not** unique on `account_id` alone — a provider issues a new subscription id on plan change or renewal, so rows accumulate over time rather than being updated in place; `get_subscription_by_account()` returns the most recently created row. |
@@ -76,6 +77,50 @@ otherwise. This is why a canceled subscription doesn't strand an account on
 its old paid plan forever: `vigilo_billing.entitlements()` only ever reads
 `accounts.plan_id`, never queries this table directly, so the cascade is
 what actually revokes the entitlement.
+
+## api_keys (`packages/identity`, added Phase 9)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID, PK | |
+| `account_id` | UUID, FK `accounts.id`, indexed | |
+| `name` | varchar(128) | User-supplied label, e.g. "CI pipeline" |
+| `prefix` | varchar(16) | First 12 chars of the plaintext key (`vglo_...`) — shown in the management UI so an owner can tell keys apart without re-displaying the secret |
+| `key_hash` | varchar(64), unique, indexed | `sha256(plaintext).hexdigest()` — the plaintext is never stored, same posture as `share_links.token_hash` |
+| `scopes` | JSON (`list[str]`) | Subset of `scan:run`, `scan:read`, `project:read`, `report:read`, `monitor:read`, `monitor:write` — see `docs/api.md` |
+| `last_used_at` | timestamptz, nullable | Stamped by `require_api_key()` on every authenticated request |
+| `revoked_at` | timestamptz, nullable | Set by `revoke_api_key()`; a revoked key still exists (audit trail) but `require_api_key()` rejects it |
+| `created_at` | timestamptz | |
+
+The plaintext key (`f"vglo_{secrets.token_urlsafe(32)}"`) is returned once,
+at creation (`POST /v1/me/api-keys`), matching `share_links`'s
+plaintext-once pattern exactly. `count_api_keys_for_account()` (live
+`COUNT` of non-revoked rows) feeds `Meter.API_KEYS`, the same
+live-`COUNT`-at-check-time pattern `monitors`/`Meter.MONITORS` already
+established in Phase 8, rather than a separately maintained counter column.
+
+## branding_profiles (`packages/identity`, added Phase 9)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID, PK | |
+| `account_id` | UUID, FK `accounts.id`, unique, indexed | One profile per account — the plan's "client workspaces" scope resolved to its smallest faithful reading, not a new multi-tenant sub-account entity |
+| `logo_url` | varchar(255), nullable | |
+| `primary_color` | varchar(32), nullable | Rendered as the report's accent border color |
+| `footer_text` | varchar(255), nullable | |
+| `custom_domain` | varchar(255), nullable | Presentation metadata only — Vigilo does not provision DNS or TLS for it, see `docs/self-hosting.md`'s custom-domain note |
+| `created_at` | timestamptz | |
+| `updated_at` | timestamptz, `onupdate=func.now()` | |
+
+Not in the Prooflight domain table at all — it names a "Business tier" for
+white-labeling (§11) without specifying an entity for the configuration
+itself. `upsert_branding_profile()` is the only writer, found-or-created
+idempotently by `account_id`. Gated entirely by
+`entitlements(account.plan_id).white_label_allowed` at the `apps/api`
+layer, not by this table's own structure — a Free-tier account can have no
+row at all, and `get_branding_for_target()` (`apps/api/src/vigilo_api/
+report_rendering.py`) returns `None` for any account whose plan doesn't
+allow white-labeling even if a stale row exists from a prior downgrade.
 
 ## projects (`packages/project`)
 
@@ -191,7 +236,7 @@ a column without adding real precision.
 | `format` | varchar(16) | `"html"` \| `"pdf"` |
 | `status` | varchar(16), default `"pending"` | `"pending"` \| `"complete"` \| `"failed"` — represents the PDF-render job's lifecycle. An `"html"` report is always created with `status="complete"` immediately: nothing is rendered ahead of time, the web page renders on request. |
 | `artefact_uri` | varchar(255), nullable | Object-store key for a completed PDF (`reports/{report_id}.pdf`). Always `NULL` for `format="html"` — the HTML report has no stored artefact, `apps/web`'s report page renders it live from `GET /v1/scans/{id}/report` on every request. |
-| `branding_profile_id` | varchar(64), nullable | Placeholder — no such entity exists yet, same pattern as `accounts.plan_id` |
+| `branding_profile_id` | varchar(64), nullable | **Still unused as of Phase 9** — `branding_profiles` now exists (see that section above), but `ScanReportResponse.branding` is resolved live per request by `get_branding_for_target()` (target → project → account → profile), not by a stored FK on the report row itself. This column remains a placeholder for a future "freeze the branding a PDF was rendered with" use case, distinct from the HTML report's always-live lookup. |
 | `generated_at` | timestamptz, nullable | Set on completion |
 | `created_at` | timestamptz | |
 
@@ -315,9 +360,11 @@ Not yet modeled (see the phase that adds them): multi-`Project` UI/API
 (every account still gets exactly one default project, no phase commits to
 this yet), `Evidence` as its own relational table (no phase commits to this
 yet — object storage has sufficed so far), `CheckDefinition` (the registry
-in code is the source of truth; no DB mirror exists), `ApiKey` (Phase 9's
-public API). `Subscription` (Phase 7) and `MonitorSchedule`/`Alert`
-(Phase 8, named `monitors`/`alerts` — see those sections above) are no
+in code is the source of truth; no DB mirror exists), a repo-connector
+entity (explicitly deferred out of Phase 9 to its own future phase —
+`docs/build-roadmap.md`'s Phase 9 entry has the full reasoning). `Subscription`
+(Phase 7), `MonitorSchedule`/`Alert` (Phase 8, named `monitors`/`alerts`)
+and `ApiKey` (Phase 9, named `api_keys` — see those sections above) are no
 longer deferred. `ScoreSnapshot` never got built as its own table either —
 Phase 8's score-history chart reads `scans` directly
 (`list_scans_for_target()`, `docs/modules.md` §8), which already carries

@@ -10,12 +10,17 @@ functions, and serialises the result, per that module's own boundary rule.
 Base URL: whatever `apps/api` is deployed at. Every endpoint is under `/v1`
 except `GET /badge/{target_id}.svg` (Phase 8) — deliberately unversioned
 and prefix-free, since it's meant to be embedded by URL in a third-party
-`<img>` tag, not called as part of the versioned API contract. Auth: a
-Clerk session JWT as `Authorization: Bearer <token>`,
-verified against `CLERK_JWKS_URL` (`packages/apps/api/src/vigilo_api/auth.py`).
-Errors: any `StructuredError` raised inside a handler is mapped to an HTTP
-status by `vigilo_api.errors.handle_structured_error`; the body is always
-`{"code": "...", "message": "...", "context": {...}}`.
+`<img>` tag, not called as part of the versioned API contract — and except
+`/public/v1/*` (Phase 9), a separate key-authenticated surface, see below.
+Auth: a Clerk session JWT as `Authorization: Bearer <token>`,
+verified against `CLERK_JWKS_URL` (`packages/apps/api/src/vigilo_api/auth.py`),
+for every `/v1/*` route; `/public/v1/*` is authenticated by API key
+instead (its own section below). Errors: any `StructuredError` raised
+inside a handler is mapped to an HTTP status by
+`vigilo_api.errors.handle_structured_error`; the body is always
+`{"code": "...", "message": "...", "context": {...}}` — except
+`/public/v1/*`'s auth/scope/rate-limit failures, which are plain
+`HTTPException`s (see that section).
 
 ---
 
@@ -106,7 +111,8 @@ default `Project`.
     "plan_id": "free", "targets_limit": 1, "scans_per_month_limit": 3,
     "active_tier_allowed": false, "share_links_allowed": false,
     "monitoring_frequency": null, "monitors_limit": 0,
-    "api_keys_limit": null, "repo_connectors_limit": null
+    "api_keys_limit": 0, "api_rate_limit_per_minute": null,
+    "white_label_allowed": false, "repo_connectors_limit": null
   }
 }
 ```
@@ -115,8 +121,11 @@ default `Project`.
 fresh on every call — nothing here is cached or stored separately from
 `accounts.plan_id`. `monitoring_frequency`/`monitors_limit` are enforced as
 of Phase 8 (`POST /v1/targets/{id}/monitors` below); `api_keys_limit`/
-`repo_connectors_limit` remain Phase 9-shaped fields with no enforcement
-behind them yet (no API key or repo connector exists to restrict).
+`api_rate_limit_per_minute`/`white_label_allowed` are enforced as of Phase 9
+(`POST /v1/me/api-keys`, `/public/v1/*`, `PUT /v1/me/branding-profile`
+below). `repo_connectors_limit` remains a Phase-9-shaped field with no
+enforcement behind it — the repo connector itself is explicitly deferred
+past Phase 9, see `docs/build-roadmap.md`.
 
 **Errors**: `401` missing/invalid/expired token, or a token whose claims
 have no email and no prior linked account.
@@ -440,6 +449,157 @@ impossible, not just filtered out.
 
 ---
 
+## `POST /v1/me/api-keys` — create an API key (Phase 9)
+
+Auth required (Clerk session — this is session-authenticated management of
+the keys that unlock `/public/v1/*` below, not itself part of that
+surface). Gated on `entitlements(account.plan_id).api_keys_limit` via
+`Meter.API_KEYS` (Free is `0` — no API access on Free).
+
+**Request**: `{ "name": "CI pipeline", "scopes": ["scan:run", "scan:read"] }`
+
+**Response `201`**
+
+```json
+{
+  "api_key_id": "...", "name": "CI pipeline", "prefix": "vglo_aBc123De",
+  "scopes": ["scan:run", "scan:read"], "api_key": "vglo_aBc123De..."
+}
+```
+
+`api_key` (the plaintext) is returned once, at creation, and never
+persisted or logged — only its SHA-256 hash is (`docs/data-model.md`'s
+`api_keys.key_hash`), same posture as `share_links`' token.
+
+**Errors**: `422` an unknown scope (see the scopes table below), `429`
+`QUOTA_EXCEEDED`.
+
+## `GET /v1/me/api-keys` — list API keys
+
+Auth required. Never returns `key_hash` or the plaintext.
+
+**Response `200`**: `[{ "api_key_id": "...", "name": "CI pipeline", "prefix": "vglo_aBc123De", "scopes": [...], "last_used_at": "...", "revoked_at": null, "created_at": "..." }]`
+
+## `POST /v1/me/api-keys/{api_key_id}/revoke` — revoke a key
+
+Auth required. `404`, not `403`, on ownership mismatch (checked by
+re-listing the caller's own keys before mutating), matching
+`share_links.py`'s revoke precedent.
+
+**Response `200`**: same shape as the list entry above, with `revoked_at` set.
+
+**Errors**: `404` unknown key or not owned.
+
+## `PUT`/`GET /v1/me/branding-profile` — white-label configuration (Phase 9)
+
+Auth required. Gated on `entitlements(account.plan_id).white_label_allowed`
+— only the Business plan includes it, `QuotaExceeded` (`429`) otherwise.
+`GET` returns all-`null` fields rather than `404` for an account with no
+profile configured yet (found-or-created semantics, mirroring
+`upsert_branding_profile()`'s own idempotence).
+
+**Request** (`PUT`): `{ "logo_url": "https://...", "primary_color": "#0ea5e9", "footer_text": "...", "custom_domain": "reports.example.com" }`
+— every field optional; omitted fields are left unchanged, not cleared.
+
+**Response `200`**: `{ "logo_url": "...", "primary_color": "...", "footer_text": "...", "custom_domain": "..." }`
+
+`custom_domain` is stored and returned as presentation metadata only — see
+`docs/self-hosting.md`'s custom-domain note; Vigilo does not provision DNS
+or TLS for it. A configured profile is automatically included as
+`ScanReportResponse.branding` on both `GET /v1/scans/{id}/report` and
+`GET /v1/share/{token}` for any target the account owns — `null` for every
+other account, so `apps/web` never needs to check the plan itself.
+
+**Errors**: `429` `QUOTA_EXCEEDED` (`PUT` only — plan doesn't include
+white-labeling).
+
+---
+
+## Key-authenticated public API (`/public/v1/*`, Phase 9)
+
+A REST + SSE surface distinct from everything above: authenticated by
+`Authorization: Bearer vglo_...` (an API key from `POST /v1/me/api-keys`),
+never a Clerk session. Every route requires a scope, checked against the
+key's own `scopes`, and is rate-limited per **account** (one shared budget
+across all of that account's keys) at
+`entitlements(account.plan_id).api_rate_limit_per_minute` requests/minute
+— `null` (Free) means no key can be issued at all, since `api_keys_limit`
+is `0` on Free.
+
+**Auth/scope/rate-limit errors are plain `HTTPException`s, not
+`StructuredError`s** — the body is `{"detail": "..."}`, not this
+document's usual `{"code", "message", "context"}` shape. This is a
+deliberate, narrow deviation: `api_key_auth.py` sits in front of every
+route as a FastAPI dependency, before any handler (and thus before
+`vigilo_api.errors.handle_structured_error`'s usual error path) runs.
+
+| Status | Cause |
+| --- | --- |
+| `401` | missing/malformed bearer token, or the key is unknown/revoked |
+| `403` | the key's scopes don't include the one this route requires |
+| `429` | rate limit exceeded — response includes a `Retry-After: <seconds>` header |
+
+**Scopes**: `scan:run`, `scan:read`, `project:read`, `report:read`,
+`monitor:read`, `monitor:write`.
+
+**Ownership.** Every resource lookup below checks that the target/scan
+belongs to the key's own account and returns `404` (never `403`) on a
+mismatch — deliberately unlike `GET /v1/scans/{id}` above, which is public
+by design (an unguessable UUID, no ownership check at all). A scoped API
+key must never let one caller enumerate another account's resources by
+guessing an id.
+
+### `POST /public/v1/scans` (`scan:run`)
+
+Same request/response shape as `POST /v1/scans` above, minus the `email`
+field — the account is already known from the key. Reuses the identical
+`resolve_authorization()`/quota machinery, including the `TARGETS`/
+`SCANS_MONTHLY` checks for a target/scan-count the account has already
+used elsewhere (session-authenticated and public-API usage share one
+quota, not separate ones).
+
+### `GET /public/v1/scans/{scan_job_id}` (`scan:read`)
+
+Same response shape as `GET /v1/scans/{id}` above.
+
+### `GET /public/v1/scans/{scan_job_id}/stream` (`scan:read`)
+
+Server-sent events, `Content-Type: text/event-stream`. Emits `data: {"status": "..."}\n\n`
+on every status change (not on a fixed interval — polls internally at 1s),
+closing the stream once the job reaches a terminal status or 120 seconds
+elapse, whichever first. A client that needs the final report after the
+stream closes calls `GET .../report` below rather than relying on the
+stream to deliver it inline.
+
+### `GET /public/v1/scans/{scan_job_id}/report` (`report:read`)
+
+Same response shape as `GET /v1/scans/{id}/report` above, always with
+`is_owner: true` (there is no unauthenticated caller on this surface) and
+`branding` populated per the white-label note above.
+
+### `GET /public/v1/scans/{scan_job_id}/findings` (`report:read`)
+
+`ReportFindingResponse[]` — just `report.findings` from the endpoint
+above, as its own named resource (the vision doc's literal "list
+findings").
+
+### `GET /public/v1/targets/{target_id}/scores` (`report:read`)
+
+Same shape as `GET /v1/targets/{id}/scores` above.
+
+### `GET /public/v1/projects` (`project:read`)
+
+`[{ "project_id": "...", "name": "...", "created_at": "..." }]` — the
+account's one default project (every account still gets exactly one, see
+`docs/data-model.md`'s "Deferred entities").
+
+### `POST`/`GET /public/v1/targets/{target_id}/monitors` (`monitor:write`/`monitor:read`), `POST /public/v1/monitors/{monitor_id}/disable` (`monitor:write`)
+
+Same request/response shapes and quota rules as the session-authenticated
+monitoring endpoints above.
+
+---
+
 ## Error-code → HTTP status mapping (`vigilo_api/errors.py`)
 
 | `ErrorCode` | Status |
@@ -457,11 +617,16 @@ impossible, not just filtered out.
 ## Not yet built (later phases)
 
 Multi-project management endpoints (every account gets exactly one default
-project today — see `docs/data-model.md`), outbound webhooks and API keys
-for third-party integrations (Phase 9), the public REST API's
-rate-limited, key-authenticated surface distinct from this
-session-authenticated one (Phase 9), the MCP server (Phase 9). Billing
-endpoints shipped in Phase 7 (above) — stubbed against Paddle, no real
-account. Monitoring endpoints shipped in Phase 8 (above); webhook delivery
-for alerts (the vision doc's "email in v1, webhook in v2" framing,
-`docs/modules.md` §10) remains v2 — email is the only channel implemented.
+project today — see `docs/data-model.md`). A repo connector and its
+endpoints — explicitly deferred out of Phase 9 to its own future phase, see
+`docs/build-roadmap.md`: it's a wholly new subsystem (GitHub auth, a new
+evidence source, new scanning logic) comparable in size to Phase 7 or 8 by
+itself, not a natural extension of anything Phase 9 built. Outbound
+webhooks for third-party integrations remain unbuilt too (only the MCP
+server and the key-authenticated REST API shipped as Phase 9's
+distribution channels — see the public API section above and
+`docs/modules.md` §13). Billing endpoints shipped in Phase 7 (above) —
+stubbed against Paddle, no real account. Monitoring endpoints shipped in
+Phase 8 (above); webhook delivery for alerts (the vision doc's "email in
+v1, webhook in v2" framing, `docs/modules.md` §10) remains v2 — email is
+the only channel implemented.
