@@ -46,6 +46,16 @@ async def get_or_create_default_project(session: AsyncSession, account_id: uuid.
     return Project.model_validate(row)
 
 
+async def get_project(session: AsyncSession, project_id: uuid.UUID) -> Project | None:
+    """The other direction of `get_or_create_default_project()` — from a
+    `project_id` (e.g. `Target.project_id`) back to its owning `Project`
+    (and via `Project.account_id`, its account). Needed for Phase 9's
+    branding lookup: a report is rendered from a `Target`, which only
+    carries `project_id`, not `account_id` directly."""
+    row = await session.get(ProjectRow, project_id)
+    return Project.model_validate(row) if row else None
+
+
 async def create_target(session: AsyncSession, project_id: uuid.UUID, origin: str) -> Target:
     result = await session.execute(
         select(TargetRow).where(TargetRow.project_id == project_id, TargetRow.origin == origin)

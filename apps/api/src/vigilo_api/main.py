@@ -6,9 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from vigilo_api.errors import handle_structured_error
 from vigilo_api.routers import (
     accounts,
+    api_keys,
     badge,
     billing,
+    branding,
     monitors,
+    public_api,
     reports,
     scans,
     share_links,
@@ -46,6 +49,9 @@ app.include_router(share_links.router)
 app.include_router(billing.router)
 app.include_router(monitors.router)
 app.include_router(badge.router)
+app.include_router(api_keys.router)
+app.include_router(branding.router)
+app.include_router(public_api.router)
 
 
 @app.get("/healthz")

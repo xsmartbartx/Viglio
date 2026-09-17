@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
 from vigilo_api.deps import OptionalAccountDep, QueueDep, SessionDep
-from vigilo_api.report_rendering import render_scan_report
+from vigilo_api.report_rendering import get_branding_for_target, render_scan_report
 from vigilo_api.schemas import PdfStatusResponse, ScanReportResponse
 from vigilo_identity.models import Account
 from vigilo_orchestrator.reports import (
@@ -58,6 +58,7 @@ async def get_scan_report(
     response.scan_job_id = scan_job_id
     response.target_id = job.target_id
     response.is_owner = await _is_owner(session, account, job.target_id)
+    response.branding = await get_branding_for_target(session, job.target_id)
     return response
 
 

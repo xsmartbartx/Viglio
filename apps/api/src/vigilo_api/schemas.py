@@ -39,7 +39,10 @@ class EntitlementsResponse(BaseModel):
     active_tier_allowed: bool
     share_links_allowed: bool
     monitoring_frequency: str | None
+    monitors_limit: int | None
     api_keys_limit: int | None
+    api_rate_limit_per_minute: int | None
+    white_label_allowed: bool
     repo_connectors_limit: int | None
 
     model_config = {"from_attributes": True}
@@ -130,6 +133,7 @@ class ScanReportResponse(BaseModel):
     counts_by_severity: dict[Severity, int]
     generated_at: datetime
     findings: list[ReportFindingResponse]
+    branding: BrandingProfileResponse | None = None
 
 
 class PdfStatusResponse(BaseModel):
@@ -192,4 +196,47 @@ class AlertResponse(BaseModel):
     severity: str | None
     fingerprint: str | None
     sent_at: datetime | None
+    created_at: datetime
+
+
+class ApiKeyCreate(BaseModel):
+    name: str
+    scopes: list[str]
+
+
+class ApiKeyCreateResponse(BaseModel):
+    api_key_id: uuid.UUID
+    name: str
+    prefix: str
+    scopes: list[str]
+    api_key: str  # the plaintext key — returned exactly once, at creation
+
+
+class ApiKeyResponse(BaseModel):
+    api_key_id: uuid.UUID
+    name: str
+    prefix: str
+    scopes: list[str]
+    last_used_at: datetime | None
+    revoked_at: datetime | None
+    created_at: datetime
+
+
+class BrandingProfileUpdate(BaseModel):
+    logo_url: str | None = None
+    primary_color: str | None = None
+    footer_text: str | None = None
+    custom_domain: str | None = None
+
+
+class BrandingProfileResponse(BaseModel):
+    logo_url: str | None
+    primary_color: str | None
+    footer_text: str | None
+    custom_domain: str | None
+
+
+class ProjectResponse(BaseModel):
+    project_id: uuid.UUID
+    name: str
     created_at: datetime
