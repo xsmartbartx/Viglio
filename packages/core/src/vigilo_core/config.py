@@ -74,6 +74,7 @@ class Config(BaseModel):
     paddle_webhook_secret: str | None = None
     paddle_price_id_builder: str | None = None
     paddle_price_id_studio: str | None = None
+    paddle_price_id_business: str | None = None
 
 
 def _default_brand_config_path() -> Path:
@@ -135,4 +136,5 @@ def config() -> Config:
         paddle_webhook_secret=os.environ.get("PADDLE_WEBHOOK_SECRET"),
         paddle_price_id_builder=os.environ.get("PADDLE_PRICE_ID_BUILDER"),
         paddle_price_id_studio=os.environ.get("PADDLE_PRICE_ID_STUDIO"),
+        paddle_price_id_business=os.environ.get("PADDLE_PRICE_ID_BUSINESS"),
     )

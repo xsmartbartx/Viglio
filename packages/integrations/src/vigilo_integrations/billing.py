@@ -31,6 +31,7 @@ _CHECKOUT_BASE_URL = "https://checkout.paddle.com/checkout"
 _PRICE_ID_ENV_FIELD = {
     "builder": "paddle_price_id_builder",
     "studio": "paddle_price_id_studio",
+    "business": "paddle_price_id_business",
 }
 
 
