@@ -21,6 +21,7 @@ import asyncio
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -43,9 +44,13 @@ from vigilo_billing import Meter, QuotaExceeded, consume, entitlements
 from vigilo_core.models import Tier
 from vigilo_core.validation import ValidationError, validate_target_url
 from vigilo_identity.models import Account
-from vigilo_monitoring import count_monitors_for_account, create_monitor, get_monitor
+from vigilo_monitoring import (
+    count_monitors_for_account,
+    create_monitor,
+    get_monitor,
+    get_monitor_by_target,
+)
 from vigilo_monitoring import disable_monitor as disable_monitor_row
-from vigilo_monitoring import get_monitor_by_target
 from vigilo_orchestrator.reports import get_findings_for_scan
 from vigilo_orchestrator.service import (
     TERMINAL_STATUSES,
@@ -67,6 +72,13 @@ from vigilo_project.repository import (
 )
 from vigilo_security.audit import AuditEvent, audit
 from vigilo_security.authorization import AuthorizationRequest, resolve_authorization
+
+ScanRunDep = Annotated[Account, require_scope("scan:run")]
+ScanReadDep = Annotated[Account, require_scope("scan:read")]
+ReportReadDep = Annotated[Account, require_scope("report:read")]
+ProjectReadDep = Annotated[Account, require_scope("project:read")]
+MonitorReadDep = Annotated[Account, require_scope("monitor:read")]
+MonitorWriteDep = Annotated[Account, require_scope("monitor:write")]
 
 REGISTRY_VERSION = "0.1"
 _SCANS_MONTHLY_WINDOW = timedelta(days=30)
@@ -97,7 +109,7 @@ async def public_submit_scan(
     body: ScanSubmission,
     session: SessionDep,
     queue: QueueDep,
-    account: Account = require_scope("scan:run"),
+    account: ScanRunDep,
 ) -> ScanSubmissionResponse:
     try:
         origin = validate_target_url(body.target_url)
@@ -175,7 +187,9 @@ async def public_submit_scan(
             metadata={"granted_tier": decision.granted_tier.value},
         ),
     )
-    job = await create_scan_job(session, target.id, decision.granted_tier, account.email, REGISTRY_VERSION)
+    job = await create_scan_job(
+        session, target.id, decision.granted_tier, account.email, REGISTRY_VERSION
+    )
     job = await advance(session, job.id, "authorized")
     await session.commit()
 
@@ -185,7 +199,7 @@ async def public_submit_scan(
 
 @router.get("/scans/{scan_job_id}", response_model=ScanStatusResponse)
 async def public_get_scan_status(
-    scan_job_id: uuid.UUID, session: SessionDep, account: Account = require_scope("scan:read")
+    scan_job_id: uuid.UUID, session: SessionDep, account: ScanReadDep
 ) -> ScanStatusResponse:
     job = await _owned_scan_job(session, account, scan_job_id)
     target = await get_target(session, job.target_id)
@@ -205,7 +219,7 @@ async def public_get_scan_status(
 
 @router.get("/scans/{scan_job_id}/stream")
 async def public_stream_scan_status(
-    scan_job_id: uuid.UUID, session: SessionDep, account: Account = require_scope("scan:read")
+    scan_job_id: uuid.UUID, session: SessionDep, account: ScanReadDep
 ) -> StreamingResponse:
     await _owned_scan_job(session, account, scan_job_id)
 
@@ -229,7 +243,7 @@ async def public_stream_scan_status(
 
 @router.get("/scans/{scan_job_id}/report", response_model=ScanReportResponse)
 async def public_get_scan_report(
-    scan_job_id: uuid.UUID, session: SessionDep, account: Account = require_scope("report:read")
+    scan_job_id: uuid.UUID, session: SessionDep, account: ReportReadDep
 ) -> ScanReportResponse:
     job = await _owned_scan_job(session, account, scan_job_id)
     scan = await get_scan_by_job_id(session, scan_job_id)
@@ -248,7 +262,7 @@ async def public_get_scan_report(
 
 @router.get("/scans/{scan_job_id}/findings", response_model=list[ReportFindingResponse])
 async def public_get_scan_findings(
-    scan_job_id: uuid.UUID, session: SessionDep, account: Account = require_scope("report:read")
+    scan_job_id: uuid.UUID, session: SessionDep, account: ReportReadDep
 ) -> list[ReportFindingResponse]:
     report = await public_get_scan_report(scan_job_id, session, account)
     return report.findings
@@ -256,7 +270,7 @@ async def public_get_scan_findings(
 
 @router.get("/targets/{target_id}/scores", response_model=list[ScoreHistoryEntry])
 async def public_get_target_scores(
-    target_id: uuid.UUID, session: SessionDep, account: Account = require_scope("report:read")
+    target_id: uuid.UUID, session: SessionDep, account: ReportReadDep
 ) -> list[ScoreHistoryEntry]:
     target = await _owned_target(session, account, target_id)
     scans = await list_scans_for_target(session, target.id)
@@ -274,10 +288,12 @@ async def public_get_target_scores(
 
 @router.get("/projects", response_model=list[ProjectResponse])
 async def public_list_projects(
-    session: SessionDep, account: Account = require_scope("project:read")
+    session: SessionDep, account: ProjectReadDep
 ) -> list[ProjectResponse]:
     project = await get_or_create_default_project(session, account.id)
-    return [ProjectResponse(project_id=project.id, name=project.name, created_at=project.created_at)]
+    return [
+        ProjectResponse(project_id=project.id, name=project.name, created_at=project.created_at)
+    ]
 
 
 def _to_monitor_response(monitor) -> MonitorResponse:
@@ -297,7 +313,7 @@ async def public_create_target_monitor(
     target_id: uuid.UUID,
     body: MonitorCreate,
     session: SessionDep,
-    account: Account = require_scope("monitor:write"),
+    account: MonitorWriteDep,
 ) -> MonitorResponse:
     target = await _owned_target(session, account, target_id)
     plan = entitlements(account.plan_id)
@@ -331,7 +347,7 @@ async def public_create_target_monitor(
 
 @router.get("/targets/{target_id}/monitors", response_model=MonitorResponse)
 async def public_get_target_monitor(
-    target_id: uuid.UUID, session: SessionDep, account: Account = require_scope("monitor:read")
+    target_id: uuid.UUID, session: SessionDep, account: MonitorReadDep
 ) -> MonitorResponse:
     target = await _owned_target(session, account, target_id)
     monitor = await get_monitor_by_target(session, target.id)
@@ -342,7 +358,7 @@ async def public_get_target_monitor(
 
 @router.post("/monitors/{monitor_id}/disable", response_model=MonitorResponse)
 async def public_disable_monitor(
-    monitor_id: uuid.UUID, session: SessionDep, account: Account = require_scope("monitor:write")
+    monitor_id: uuid.UUID, session: SessionDep, account: MonitorWriteDep
 ) -> MonitorResponse:
     existing = await get_monitor(session, monitor_id)
     if existing is None or existing.account_id != account.id:
