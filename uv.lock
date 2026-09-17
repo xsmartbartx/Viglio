@@ -1671,6 +1671,7 @@ source = { editable = "packages/security" }
 dependencies = [
     { name = "dnspython" },
     { name = "httpx" },
+    { name = "redis" },
     { name = "vigilo-core" },
     { name = "vigilo-persistence" },
 ]
@@ -1684,6 +1685,7 @@ dev = [
 requires-dist = [
     { name = "dnspython", specifier = ">=2.6" },
     { name = "httpx", specifier = ">=0.28" },
+    { name = "redis", specifier = ">=5.0" },
     { name = "vigilo-core", editable = "packages/core" },
     { name = "vigilo-persistence", editable = "packages/persistence" },
 ]
