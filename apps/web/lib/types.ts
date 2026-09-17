@@ -55,6 +55,13 @@ export interface ReportFindingResponse {
   fingerprint: string;
 }
 
+export interface BrandingProfileResponse {
+  logo_url: string | null;
+  primary_color: string | null;
+  footer_text: string | null;
+  custom_domain: string | null;
+}
+
 export interface ScanReportResponse {
   scan_job_id: string | null;
   target_id: string | null;
@@ -66,6 +73,7 @@ export interface ScanReportResponse {
   counts_by_severity: Partial<Record<Severity, number>>;
   generated_at: string;
   findings: ReportFindingResponse[];
+  branding: BrandingProfileResponse | null;
 }
 
 export interface PdfStatusResponse {
