@@ -15,6 +15,15 @@ class ScanSubmission(BaseModel):
     requested_tier: Tier = Tier.PASSIVE
 
 
+class PublicScanSubmission(BaseModel):
+    """No `email` — the account is already known from the API key
+    (Phase 9), unlike `ScanSubmission`'s anonymous-or-returning-submitter
+    flow."""
+
+    target_url: str
+    requested_tier: Tier = Tier.PASSIVE
+
+
 class ScanSubmissionResponse(BaseModel):
     scan_job_id: uuid.UUID
     status: str

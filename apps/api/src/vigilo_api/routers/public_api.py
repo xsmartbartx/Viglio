@@ -33,10 +33,10 @@ from vigilo_api.schemas import (
     MonitorCreate,
     MonitorResponse,
     ProjectResponse,
+    PublicScanSubmission,
     ReportFindingResponse,
     ScanReportResponse,
     ScanStatusResponse,
-    ScanSubmission,
     ScanSubmissionResponse,
     ScoreHistoryEntry,
 )
@@ -106,7 +106,7 @@ async def _owned_scan_job(session: SessionDep, account: Account, scan_job_id: uu
 
 @router.post("/scans", status_code=202, response_model=ScanSubmissionResponse)
 async def public_submit_scan(
-    body: ScanSubmission,
+    body: PublicScanSubmission,
     session: SessionDep,
     queue: QueueDep,
     account: ScanRunDep,
