@@ -33,3 +33,29 @@ class Subscription(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ApiKey(BaseModel):
+    id: uuid.UUID
+    account_id: uuid.UUID
+    name: str
+    prefix: str
+    scopes: list[str]
+    last_used_at: datetime | None
+    revoked_at: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class BrandingProfile(BaseModel):
+    id: uuid.UUID
+    account_id: uuid.UUID
+    logo_url: str | None
+    primary_color: str | None
+    footer_text: str | None
+    custom_domain: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

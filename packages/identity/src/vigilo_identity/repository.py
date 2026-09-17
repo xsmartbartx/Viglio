@@ -7,14 +7,16 @@ matching the pattern `vigilo_security.audit.audit()` uses for the same reason
 
 from __future__ import annotations
 
+import hashlib
+import secrets
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from vigilo_identity.models import Account, Subscription
-from vigilo_identity.orm import AccountRow, SubscriptionRow
+from vigilo_identity.models import Account, ApiKey, BrandingProfile, Subscription
+from vigilo_identity.orm import AccountRow, ApiKeyRow, BrandingProfileRow, SubscriptionRow
 
 
 async def get_account_by_id(session: AsyncSession, account_id: object) -> Account | None:

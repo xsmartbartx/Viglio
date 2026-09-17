@@ -5,12 +5,11 @@ mapping from Clerk's user id to a local `Account` row. It is nullable because
 a free scan creates an `Account(status="anonymous")` from an email address
 alone, before anyone has signed in — see `get_or_create_account`.
 
-`SubscriptionRow` (Phase 7) lives here, not in a new `packages/billing`
-table — `packages/billing` stays ORM-free by design
-(docs/modules.md §11's "core only" dependency, enforced by its own
-`test_import_boundary.py`), and `Subscription` is account-scoped exactly
-like `AccountRow.plan_id`, the field every subscription write cascades
-into (`upsert_subscription()`, `repository.py`).
+`SubscriptionRow` (Phase 7), `ApiKeyRow` and `BrandingProfileRow` (both
+Phase 9) all live here, not in their own packages — each is account-scoped
+auxiliary state with no more natural a home than `AccountRow` itself,
+matching `Subscription`'s own placement rationale (`packages/billing`
+stays ORM-free by design, docs/modules.md §11).
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import JSON, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from vigilo_persistence.base import Base
@@ -53,3 +52,37 @@ class SubscriptionRow(Base):
         DateTime(timezone=True), default=None
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ApiKeyRow(Base):
+    __tablename__ = "api_keys"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    prefix: Mapped[str] = mapped_column(String(16))
+    # sha256 hex digest — the plaintext key is generated once, returned to
+    # the caller, and never stored anywhere (matches create_share_link()'s
+    # token-hashed-at-rest precedent).
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    scopes: Mapped[list] = mapped_column(JSON)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BrandingProfileRow(Base):
+    __tablename__ = "branding_profiles"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    account_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("accounts.id"), unique=True, index=True
+    )
+    logo_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    primary_color: Mapped[str | None] = mapped_column(String(16), default=None)
+    footer_text: Mapped[str | None] = mapped_column(String(500), default=None)
+    custom_domain: Mapped[str | None] = mapped_column(String(255), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
