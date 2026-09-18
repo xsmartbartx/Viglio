@@ -106,6 +106,8 @@ export interface EntitlementsResponse {
   monitoring_frequency: string | null;
   monitors_limit: number | null;
   api_keys_limit: number | null;
+  api_rate_limit_per_minute: number | null;
+  white_label_allowed: boolean;
   repo_connectors_limit: number | null;
 }
 

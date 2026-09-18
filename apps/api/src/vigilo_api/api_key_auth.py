@@ -16,7 +16,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
 
-from vigilo_api.deps import SessionDep
+from vigilo_api.deps import SessionDep, _bearer_token
 from vigilo_billing import entitlements
 from vigilo_identity.models import Account
 from vigilo_identity.repository import (
@@ -37,13 +37,6 @@ ALL_SCOPES = frozenset(
         "monitor:write",
     }
 )
-
-
-def _bearer_token(request: Request) -> str:
-    header = request.headers.get("Authorization", "")
-    if not header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="missing bearer token")
-    return header.removeprefix("Bearer ")
 
 
 async def require_api_key(request: Request, session: SessionDep) -> tuple[Account, frozenset[str]]:
