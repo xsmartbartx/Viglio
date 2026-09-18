@@ -36,7 +36,7 @@ prompt can act on.
 
 | Surface | What it is |
 | --- | --- |
-| Web app | Scan submission, live scan stream, report, score history, project management |
+| Web app | Scan submission, live scan stream, report, score history, and a self-serve dashboard (targets, billing, API keys, branding) |
 | Report | Shareable HTML report + PDF export + embeddable score badge |
 | Monitoring | Scheduled re-scans, regression alerts, score history |
 | Public API | REST + SSE, API-key authenticated, same engine as the web app |
@@ -256,6 +256,25 @@ environment variables.
 ---
 
 ## Status
+
+**Self-serve dashboard added (post-Phase-9).** A live end-to-end pass after
+Phase 9 confirmed the scan engine genuinely works but found `apps/web` had
+no UI for any account-level feature beyond one deep-linked monitoring
+page — no target list, no way to add a target or start ownership
+verification, and no way to actually give Vigilo money (`POST
+/v1/billing/checkout` existed with nothing in the UI ever calling it). A
+new `/dashboard` section closes this: an overview, a target list with
+inline ownership-verification (DNS TXT / well-known file / meta tag), a
+billing/upgrade page (plan comparison table, no invented prices — the real
+price lives only in Paddle's hosted checkout, reached via the existing
+endpoint), API key management (create/list/revoke, plaintext shown once),
+and Business-tier branding settings. Two small endpoints were added to
+support it, `GET /v1/targets` and `GET /v1/plans` (`docs/api.md`);
+everything else reuses existing, already-tested backend surface as-is. The
+three existing pages' shared header markup was extracted into
+`components/Header.tsx` for the new section to use, without retrofitting
+the shipped pages themselves — a small, deliberate follow-up, not bundled
+into this change.
 
 **Phase 9 (Distribution, scoped) complete.** Vigilo is programmatically
 reachable now, not only through the web app: a key-authenticated public

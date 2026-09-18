@@ -145,6 +145,16 @@ the origin it auto-creates a target for — see that endpoint's note above.
 
 **Errors**: `422` malformed origin, `429` `QUOTA_EXCEEDED`.
 
+## `GET /v1/targets` — list the caller's targets
+
+Auth required. Added for the self-serve dashboard (`apps/web`'s
+`/dashboard/targets`) — every other target endpoint already required
+knowing a `target_id` in advance. No quota check; listing never consumes
+quota, same as `GET /v1/targets/{id}` below.
+
+**Response `200`**: `[TargetResponse, ...]`, oldest-first, scoped to the
+caller's own (default) project only.
+
 ## `GET /v1/targets/{target_id}` — exit criterion (b)'s poll target
 
 Auth required, caller must own the target (its project's `account_id`
@@ -326,6 +336,21 @@ resolution.
 `ErrorCode`s, same HTTP status — the difference is only in `body.code`).
 
 ---
+
+## `GET /v1/plans` — plan comparison data
+
+No auth — genuinely public, no `AccountDep`/`SessionDep`, reads the static
+in-memory `PLANS` dict directly. Added for the self-serve dashboard's
+billing/upgrade page (`apps/web`'s `/dashboard/billing`).
+
+**Response `200`**: `[PlanResponse, ...]`, one entry per `vigilo_billing.PlanId`
+(`free`/`builder`/`studio`/`business`), field-for-field identical to
+`EntitlementsResponse` above. **Deliberately no price field** — no dollar
+amount exists anywhere in this codebase (not in `brand.config.json`, not
+in `vigilo_billing.models.Plan`, not in any schema); the actual price
+lives only inside Paddle's own hosted checkout page, reached via
+`POST /v1/billing/checkout` below. The dashboard renders this as a
+feature/limit comparison table and links out to checkout for the price.
 
 ## `POST /v1/billing/checkout` — start a Paddle checkout (Phase 7)
 
