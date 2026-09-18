@@ -14,6 +14,7 @@ export default function Home() {
             <Link href="/sign-in">Sign in</Link>
           </Show>
           <Show when="signed-in">
+            <Link href="/dashboard">Dashboard</Link>
             <UserButton />
           </Show>
         </nav>
