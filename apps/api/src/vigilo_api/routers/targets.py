@@ -34,6 +34,7 @@ from vigilo_project.repository import (
     get_target,
     get_target_by_origin,
     issue_ownership_proof,
+    list_targets_for_project,
 )
 
 router = APIRouter(prefix="/v1/targets", tags=["targets"])
@@ -85,6 +86,16 @@ async def create_target_endpoint(
 
     target = await create_target(session, project.id, origin)
     return _to_response(target)
+
+
+@router.get("", response_model=list[TargetResponse])
+async def list_targets_endpoint(
+    account: AccountDep,
+    session: SessionDep,
+) -> list[TargetResponse]:
+    project = await get_or_create_default_project(session, account.id)
+    targets = await list_targets_for_project(session, project.id)
+    return [_to_response(target) for target in targets]
 
 
 @router.get("/{target_id}", response_model=TargetResponse)

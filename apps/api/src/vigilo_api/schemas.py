@@ -57,6 +57,27 @@ class EntitlementsResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PlanResponse(BaseModel):
+    """Deliberately field-for-field identical to `EntitlementsResponse` and
+    deliberately price-free — `vigilo_billing.models.Plan` has no price
+    field at all (docs/build-roadmap.md's dashboard entry: the real price
+    lives only inside Paddle's own hosted checkout, never in this repo)."""
+
+    plan_id: str
+    targets_limit: int | None
+    scans_per_month_limit: int | None
+    active_tier_allowed: bool
+    share_links_allowed: bool
+    monitoring_frequency: str | None
+    monitors_limit: int | None
+    api_keys_limit: int | None
+    api_rate_limit_per_minute: int | None
+    white_label_allowed: bool
+    repo_connectors_limit: int | None
+
+    model_config = {"from_attributes": True}
+
+
 class AccountResponse(BaseModel):
     account_id: uuid.UUID
     email: str

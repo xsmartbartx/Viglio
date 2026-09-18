@@ -14,8 +14,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from vigilo_api.deps import AccountDep, SessionDep
-from vigilo_api.schemas import CheckoutRequest, CheckoutResponse
-from vigilo_billing import UnrecognizedWebhookEvent, interpret_webhook_event
+from vigilo_api.schemas import CheckoutRequest, CheckoutResponse, PlanResponse
+from vigilo_billing import PLANS, UnrecognizedWebhookEvent, interpret_webhook_event
 from vigilo_identity.repository import get_account_by_email, upsert_subscription
 from vigilo_integrations.billing import (
     create_checkout_url,
@@ -26,11 +26,21 @@ from vigilo_security.audit import AuditEvent, audit
 
 router = APIRouter(prefix="/v1/billing", tags=["billing"])
 
+# A separate router (bare /v1 prefix, not /v1/billing) for GET /v1/plans —
+# the dashboard's billing/upgrade page's plan-comparison data. Genuinely
+# public: no account, no session, just the static in-memory PLANS dict.
+plans_router = APIRouter(prefix="/v1", tags=["billing"])
+
 
 @router.post("/checkout", response_model=CheckoutResponse)
 async def create_checkout(body: CheckoutRequest, account: AccountDep) -> CheckoutResponse:
     checkout_url = create_checkout_url(body.plan_id, account.email, str(account.id))
     return CheckoutResponse(checkout_url=checkout_url)
+
+
+@plans_router.get("/plans", response_model=list[PlanResponse])
+async def list_plans() -> list[PlanResponse]:
+    return [PlanResponse.model_validate(plan) for plan in PLANS.values()]
 
 
 @router.post("/webhook")

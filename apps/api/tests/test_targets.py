@@ -35,6 +35,40 @@ async def test_create_target_rejects_a_malformed_origin(client, account):
     assert response.status_code == 422
 
 
+async def test_list_targets_returns_only_the_callers_targets(client, account):
+    # Free plan's targets_limit is 1 — one target for `account` is enough
+    # to prove isolation without tripping the quota this test isn't about.
+    create_response = await client.post("/v1/targets", json={"origin": "https://example.com"})
+    assert create_response.status_code == 201
+
+    async with session_scope() as session:
+        other = await get_or_create_account(
+            session, email="other-list@example.com", clerk_user_id="user_other_list"
+        )
+    app.dependency_overrides[require_account] = lambda: other
+    other_response = await client.post(
+        "/v1/targets", json={"origin": "https://not-mine.example.com"}
+    )
+    assert other_response.status_code == 201
+
+    app.dependency_overrides[require_account] = lambda: account
+    response = await client.get("/v1/targets")
+
+    assert response.status_code == 200
+    assert {target["origin"] for target in response.json()} == {"https://example.com"}
+
+
+async def test_list_targets_for_an_account_with_none_returns_an_empty_list(client, account):
+    response = await client.get("/v1/targets")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+async def test_list_targets_requires_authentication(client):
+    response = await client.get("/v1/targets")
+    assert response.status_code == 401
+
+
 async def test_get_target_returns_404_for_someone_elses_target(client, account):
     create_response = await client.post("/v1/targets", json={"origin": "https://example.com"})
     target_id = create_response.json()["target_id"]
