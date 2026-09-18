@@ -139,15 +139,16 @@ docker compose -f docker-compose.self-host.yml exec api \
 ## Custom domains for white-labeled reports (Business plan)
 
 A Business-tier account's `BrandingProfile` (`PUT /v1/me/branding-profile`)
-carries an optional `custom_domain` field. Vigilo does not provision DNS
-or TLS certificates for it — that would be a materially larger,
-per-account infrastructure undertaking outside this phase's scope. Point
-your own domain's DNS at your `apps/web` deployment yourself (a CNAME to
-wherever `apps/web`'s container is reachable) and terminate TLS with your
-own reverse proxy (e.g. Caddy, Traefik, nginx) in front of it; the
-`custom_domain` field is presentation metadata Vigilo stores and returns
-on report/share-link responses, not something it actively redirects or
-routes.
+carries an optional `custom_domain` field. This is a different concern
+from `WEB_DOMAIN`/`API_DOMAIN` above (your own app's domain) — it's a
+*customer's* domain for their own white-labeled reports. Vigilo does not
+provision DNS or TLS certificates for it — that would be a materially
+larger, per-account infrastructure undertaking outside this phase's scope.
+If you want to support it, point that domain's DNS at your `apps/web`
+deployment yourself and add its own site block to the bundled `Caddyfile`
+(or your own reverse proxy); the `custom_domain` field itself is
+presentation metadata Vigilo stores and returns on report/share-link
+responses, not something it actively redirects or routes.
 
 ## Backups
 

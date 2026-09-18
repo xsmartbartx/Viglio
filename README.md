@@ -107,6 +107,8 @@ docs/
        └─ ADR-0003-scan-authorization-model.md
 docker-compose.yml                    # local dev infra only (postgres/redis/minio)
 docker-compose.self-host.yml          # Phase 9 — the full self-hosted stack, see docs/self-hosting.md
+Caddyfile                             # reverse proxy + automatic HTTPS for a production VPS deployment
+scripts/deploy.sh                     # idempotent redeploy: git pull, rebuild, migrate
 brand.config.json                     # single source of truth for naming
 ```
 
@@ -251,7 +253,9 @@ Vigilo also ships as three container images
 (`apps/api`/`apps/scanner`/`apps/web`) you can run on your own
 infrastructure instead of using the hosted product — see
 `docs/self-hosting.md` for the full build/run instructions and required
-environment variables.
+environment variables. A bundled `caddy` service and `scripts/deploy.sh`
+cover a real production VPS deployment with a domain and automatic TLS —
+see that doc's "Production VPS deployment" section.
 
 ---
 
