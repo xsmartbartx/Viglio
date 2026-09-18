@@ -82,6 +82,17 @@ async def list_target_ids_for_project(
     return list(result.scalars().all())
 
 
+async def list_targets_for_project(
+    session: AsyncSession, project_id: uuid.UUID
+) -> list[Target]:
+    """Full-row sibling of `list_target_ids_for_project` above — feeds
+    `GET /v1/targets`'s dashboard list view."""
+    result = await session.execute(
+        select(TargetRow).where(TargetRow.project_id == project_id).order_by(TargetRow.created_at)
+    )
+    return [_target_from_row(row) for row in result.scalars().all()]
+
+
 async def count_targets_for_project(session: AsyncSession, project_id: uuid.UUID) -> int:
     """Feeds `vigilo_billing.consume(..., Meter.TARGETS, ...)` — a live
     `COUNT`, not a stored counter, so there's nothing to decrement or drift

@@ -17,6 +17,7 @@ from vigilo_project.repository import (
     has_valid_ownership_proof,
     issue_ownership_proof,
     list_target_ids_for_project,
+    list_targets_for_project,
     mark_proof_verified,
     set_opt_out,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "create_target",
     "count_targets_for_project",
     "list_target_ids_for_project",
+    "list_targets_for_project",
     "get_target",
     "get_target_by_origin",
     "set_opt_out",

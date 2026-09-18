@@ -14,6 +14,7 @@ from vigilo_project.repository import (
     get_target_by_origin,
     has_valid_ownership_proof,
     issue_ownership_proof,
+    list_targets_for_project,
     mark_proof_verified,
     set_opt_out,
 )
@@ -44,6 +45,22 @@ async def test_create_target_is_idempotent_per_project_and_origin(db_session: As
     assert first.id == second.id
     assert first.verification_status == Tier.PASSIVE
     assert first.opt_out_flag is False
+
+
+async def test_list_targets_for_project_returns_only_that_projects_targets(
+    db_session: AsyncSession,
+) -> None:
+    project = await get_or_create_default_project(db_session, await _account_id(db_session))
+    other_project = await get_or_create_default_project(
+        db_session, await _account_id(db_session, email="other@example.com")
+    )
+    first = await create_target(db_session, project.id, "https://a.example.com")
+    second = await create_target(db_session, project.id, "https://b.example.com")
+    await create_target(db_session, other_project.id, "https://c.example.com")
+
+    targets = await list_targets_for_project(db_session, project.id)
+
+    assert {target.id for target in targets} == {first.id, second.id}
 
 
 async def test_get_target_and_get_target_by_origin_agree(db_session: AsyncSession) -> None:
