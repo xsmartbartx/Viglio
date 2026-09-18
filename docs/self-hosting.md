@@ -71,7 +71,8 @@ build-time variables that `apps/web`'s image needs (see below):
 | `POSTMARK_SERVER_TOKEN`, `MAIL_FROM_ADDRESS` | api, scanner | Optional (see above). |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | api, scanner | Optional (see above). |
 | `PADDLE_VENDOR_ID`, `PADDLE_WEBHOOK_SECRET`, `PADDLE_PRICE_ID_BUILDER`, `PADDLE_PRICE_ID_STUDIO`, `PADDLE_PRICE_ID_BUSINESS` | api | Optional (see above). One price ID per paid plan tier. |
-| `WEB_APP_URL` | api, scanner | The web app's origin — `apps/scanner`'s ARQ worker navigates here with Playwright to render a scan's report page to PDF. |
+| `WEB_APP_URL` | api, scanner | The web app's origin — `apps/scanner`'s ARQ worker navigates here with Playwright to render a scan's report page to PDF. Must be `https://` + `WEB_DOMAIN` in production (see below); apps/api's CORS check is an exact origin-string match. |
+| `WEB_DOMAIN`, `API_DOMAIN` | caddy | Production only — see "Production VPS deployment" below. Leave unset for local-only self-hosting. |
 
 **Build-time vs. runtime**: `NEXT_PUBLIC_*` variables are inlined into
 `apps/web`'s JavaScript bundle by `next build` — they cannot be changed by
@@ -79,7 +80,54 @@ editing environment variables on an already-built container, only by
 rebuilding (`docker compose -f docker-compose.self-host.yml build web`
 after changing `.env`).
 
+## Production VPS deployment
+
+The Quick Start above binds `apps/web`/`apps/api` to `127.0.0.1` only —
+fine for a single-machine trial, not reachable from the internet. For a
+real deployment with a domain and TLS, `docker-compose.self-host.yml`
+includes a `caddy` service that terminates HTTPS (automatic Let's Encrypt
+certificates, zero extra config) and is the only service bound to a public
+port (`80`/`443`).
+
+**What you need to do yourself** (none of this is something an assistant
+can do on your behalf — it's account creation, purchases, and DNS you
+control):
+
+1. Provision a VPS (any provider) with a public IP and Docker installed.
+2. Buy a domain if you don't have one, and point two DNS **A records** at
+   the VPS's IP: one for the app (e.g. `app.yourdomain.com`), one for the
+   API (e.g. `api.yourdomain.com`). Caddy needs both — the public REST API
+   (`docs/api.md`) is served from its own origin, not a path under the app.
+3. Make sure ports `80` and `443` are reachable (most VPS providers allow
+   this by default; check any separate cloud firewall/security-group rules).
+4. Clone the repo onto the VPS, `cp .env.example .env`, and fill in real
+   values — `WEB_DOMAIN`/`API_DOMAIN` (the two hostnames from step 2),
+   `PUBLIC_API_BASE_URL`/`WEB_APP_URL` set to their `https://` form, and
+   every account credential from "Requirements" above (a **production**
+   Clerk application, not the dev instance used for local testing — plus
+   real Paddle/Postmark/Anthropic credentials if you're using them).
+
+**Then run the deploy script:**
+
+```bash
+./scripts/deploy.sh
+```
+
+This builds the images, starts the full stack (including `caddy`), and
+brings the schema to head — safe to re-run for every future update too
+(it's the same `git pull && up -d --build && alembic upgrade head`
+sequence as "Updating" below, just as one command). First startup can take
+up to a minute while Caddy requests its initial certificates from Let's
+Encrypt; watch progress with `docker compose -f docker-compose.self-host.yml
+logs -f caddy`.
+
 ## Updating
+
+```bash
+./scripts/deploy.sh
+```
+
+Or the three commands it runs, individually:
 
 ```bash
 git pull
