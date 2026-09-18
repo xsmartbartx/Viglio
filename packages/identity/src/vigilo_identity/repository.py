@@ -232,11 +232,14 @@ async def get_branding_profile(
 async def upsert_branding_profile(
     session: AsyncSession,
     account_id: uuid.UUID,
-    logo_url: str | None = None,
-    primary_color: str | None = None,
-    footer_text: str | None = None,
-    custom_domain: str | None = None,
+    **fields: str | None,
 ) -> BrandingProfile:
+    """`fields` are applied as a partial update — only keys actually passed
+    are written; a field the caller never mentions keeps its existing
+    value rather than being reset to `None` (the caller, `apps/api`'s
+    `PUT /v1/me/branding-profile`, passes `body.model_dump(exclude_unset=True)`
+    so an omitted request field never reaches here at all, while an
+    explicit `null` in the request does still clear it)."""
     result = await session.execute(
         select(BrandingProfileRow).where(BrandingProfileRow.account_id == account_id)
     )
@@ -246,10 +249,8 @@ async def upsert_branding_profile(
         row = BrandingProfileRow(account_id=account_id)
         session.add(row)
 
-    row.logo_url = logo_url
-    row.primary_color = primary_color
-    row.footer_text = footer_text
-    row.custom_domain = custom_domain
+    for key, value in fields.items():
+        setattr(row, key, value)
 
     await session.flush()
     # `updated_at`'s server-side onupdate=func.now() isn't known to the

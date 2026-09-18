@@ -33,12 +33,7 @@ async def update_branding_profile(
         raise QuotaExceeded("white-label branding is not included in the account's plan")
 
     profile = await upsert_branding_profile(
-        session,
-        account.id,
-        logo_url=body.logo_url,
-        primary_color=body.primary_color,
-        footer_text=body.footer_text,
-        custom_domain=body.custom_domain,
+        session, account.id, **body.model_dump(exclude_unset=True)
     )
     return _to_response(profile)
 

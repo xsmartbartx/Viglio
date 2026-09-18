@@ -46,3 +46,21 @@ async def test_upsert_branding_profile_updates_the_existing_row_not_a_duplicate(
 
     assert second.id == first.id
     assert second.logo_url == "https://b.example.com/logo.png"
+
+
+async def test_upsert_branding_profile_is_a_partial_update(db_session: AsyncSession) -> None:
+    account = await get_or_create_account(db_session, email="brandpartial@example.com")
+    await upsert_branding_profile(
+        db_session,
+        account.id,
+        logo_url="https://example.com/logo.png",
+        primary_color="#112233",
+    )
+
+    updated = await upsert_branding_profile(
+        db_session, account.id, footer_text="Provided by Acme Security"
+    )
+
+    assert updated.footer_text == "Provided by Acme Security"
+    assert updated.logo_url == "https://example.com/logo.png"
+    assert updated.primary_color == "#112233"
