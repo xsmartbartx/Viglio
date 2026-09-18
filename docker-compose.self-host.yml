@@ -82,6 +82,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
     environment:
@@ -118,6 +120,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
       ENV: production
       DATABASE_URL: postgresql+asyncpg://vigilo:${POSTGRES_PASSWORD:-vigilo-dev-secret}@postgres:5432/vigilo

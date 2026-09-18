@@ -134,7 +134,7 @@ async def public_submit_scan(
             target_opt_out=False,
             ownership_proof_valid=ownership_proof_valid,
             recent_scan_count_24h=0,
-            denylisted=False,
+            denylisted=origin in _DENYLIST,
             active_tier_permitted_by_plan=plan.active_tier_allowed,
         )
     )
@@ -157,6 +157,16 @@ async def public_submit_scan(
         target_count = await count_targets_for_project(session, project.id)
         target_decision = consume(target_count, 1, Meter.TARGETS, plan)
         if not target_decision.allowed:
+            await audit(
+                session,
+                AuditEvent(
+                    actor="public_api",
+                    action="quota_exceeded",
+                    subject=origin,
+                    account_id=account.id,
+                    metadata={"meter": Meter.TARGETS.value, "reason": target_decision.reason},
+                ),
+            )
             await session.commit()
             raise QuotaExceeded(
                 "targets limit reached for plan",
@@ -169,6 +179,16 @@ async def public_submit_scan(
     scan_count = await count_scan_jobs_for_targets(session, target_ids, since)
     scans_decision = consume(scan_count, 1, Meter.SCANS_MONTHLY, plan)
     if not scans_decision.allowed:
+        await audit(
+            session,
+            AuditEvent(
+                actor="public_api",
+                action="quota_exceeded",
+                subject=origin,
+                account_id=account.id,
+                metadata={"meter": Meter.SCANS_MONTHLY.value, "reason": scans_decision.reason},
+            ),
+        )
         await session.commit()
         raise QuotaExceeded(
             "scans-per-month limit reached for plan",
