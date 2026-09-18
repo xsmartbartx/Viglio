@@ -68,6 +68,27 @@ async def test_checkout_for_an_unpriced_plan_returns_500(client):
     assert response.json()["code"] == "BILLING_PROVIDER_ERROR"
 
 
+async def test_list_plans_is_public(client):
+    app.dependency_overrides.pop(require_account, None)
+    response = await client.get("/v1/plans")
+    assert response.status_code == 200
+
+
+async def test_list_plans_lists_every_plan_with_no_price_field(client):
+    response = await client.get("/v1/plans")
+    body = response.json()
+    assert {plan["plan_id"] for plan in body} == {"free", "builder", "studio", "business"}
+    assert all("price" not in plan for plan in body)
+
+
+async def test_list_plans_reflects_the_free_plans_actual_limits(client):
+    response = await client.get("/v1/plans")
+    free = next(plan for plan in response.json() if plan["plan_id"] == "free")
+    assert free["targets_limit"] == 1
+    assert free["scans_per_month_limit"] == 3
+    assert free["active_tier_allowed"] is False
+
+
 async def test_webhook_rejects_an_invalid_signature(client):
     raw_body = json.dumps({"event_type": "subscription.created"}).encode()
 

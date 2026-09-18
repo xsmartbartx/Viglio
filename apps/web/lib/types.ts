@@ -119,6 +119,56 @@ export interface AccountResponse {
   entitlements: EntitlementsResponse;
 }
 
+export interface PlanResponse {
+  plan_id: string;
+  targets_limit: number | null;
+  scans_per_month_limit: number | null;
+  active_tier_allowed: boolean;
+  share_links_allowed: boolean;
+  monitoring_frequency: string | null;
+  monitors_limit: number | null;
+  api_keys_limit: number | null;
+  api_rate_limit_per_minute: number | null;
+  white_label_allowed: boolean;
+  repo_connectors_limit: number | null;
+}
+
+export interface CheckoutResponse {
+  checkout_url: string;
+}
+
+export type VerificationMethod = "dns_txt" | "wellknown_file" | "meta_tag" | "email";
+
+export interface VerificationInitiateResponse {
+  proof_id: string;
+  method: VerificationMethod;
+  nonce: string;
+  instructions: string;
+}
+
+export interface VerificationCheckResponse {
+  proof_id: string;
+  status: string;
+}
+
+export interface ApiKeyResponse {
+  api_key_id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
+export interface ApiKeyCreateResponse {
+  api_key_id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  api_key: string; // plaintext — present only in this response, once
+}
+
 export interface TargetResponse {
   target_id: string;
   origin: string;

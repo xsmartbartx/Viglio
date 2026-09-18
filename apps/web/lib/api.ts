@@ -6,8 +6,13 @@ import type {
   AccountResponse,
   AlertResponse,
   ApiErrorBody,
+  ApiKeyCreateResponse,
+  ApiKeyResponse,
+  BrandingProfileResponse,
+  CheckoutResponse,
   MonitorResponse,
   PdfStatusResponse,
+  PlanResponse,
   ScanReportResponse,
   ScanStatusResponse,
   ScanSubmissionResponse,
@@ -15,6 +20,9 @@ import type {
   ShareLinkCreateResponse,
   ShareLinkResponse,
   TargetResponse,
+  VerificationCheckResponse,
+  VerificationInitiateResponse,
+  VerificationMethod,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -124,6 +132,67 @@ export const api = {
 
   getTargetAlerts: (targetId: string, token: string) =>
     request<AlertResponse[]>(`/v1/targets/${targetId}/alerts`, { token }),
+
+  listTargets: (token: string) => request<TargetResponse[]>("/v1/targets", { token }),
+
+  createTarget: (origin: string, token: string) =>
+    request<TargetResponse>("/v1/targets", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ origin }),
+    }),
+
+  initiateVerification: (targetId: string, method: VerificationMethod, token: string) =>
+    request<VerificationInitiateResponse>(`/v1/targets/${targetId}/verification`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ method }),
+    }),
+
+  checkVerification: (targetId: string, proofId: string, token: string) =>
+    request<VerificationCheckResponse>(
+      `/v1/targets/${targetId}/verification/${proofId}/check`,
+      { method: "POST", token },
+    ),
+
+  listPlans: () => request<PlanResponse[]>("/v1/plans"),
+
+  createCheckout: (planId: string, token: string) =>
+    request<CheckoutResponse>("/v1/billing/checkout", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ plan_id: planId }),
+    }),
+
+  createApiKey: (name: string, scopes: string[], token: string) =>
+    request<ApiKeyCreateResponse>("/v1/me/api-keys", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ name, scopes }),
+    }),
+
+  listApiKeys: (token: string) => request<ApiKeyResponse[]>("/v1/me/api-keys", { token }),
+
+  revokeApiKey: (apiKeyId: string, token: string) =>
+    request<ApiKeyResponse>(`/v1/me/api-keys/${apiKeyId}/revoke`, { method: "POST", token }),
+
+  getBrandingProfile: (token: string) =>
+    request<BrandingProfileResponse>("/v1/me/branding-profile", { token }),
+
+  updateBrandingProfile: (
+    body: {
+      logo_url?: string;
+      primary_color?: string;
+      footer_text?: string;
+      custom_domain?: string;
+    },
+    token: string,
+  ) =>
+    request<BrandingProfileResponse>("/v1/me/branding-profile", {
+      method: "PUT",
+      token,
+      body: JSON.stringify(body),
+    }),
 };
 
 export function apiBaseUrl(): string {
