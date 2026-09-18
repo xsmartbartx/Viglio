@@ -8,6 +8,10 @@
 #   docker compose -f docker-compose.self-host.yml up -d --build
 #   docker compose -f docker-compose.self-host.yml exec api \
 #     uv run alembic -c packages/persistence/alembic.ini upgrade head
+#
+# For a production VPS deployment with a real domain and TLS (the `caddy`
+# service below), see docs/self-hosting.md's "Production VPS deployment"
+# section and scripts/deploy.sh.
 
 name: vigilo-self-host
 
@@ -85,7 +89,10 @@ services:
       minio-init:
         condition: service_completed_successfully
     ports:
-      - "8000:8000"
+      # Loopback-only — Caddy (below) is the only public entry point.
+      # Container-to-container traffic (Caddy -> api) uses the compose
+      # network's service name regardless of this binding.
+      - "127.0.0.1:8000:8000"
     environment:
       ENV: production
       DATABASE_URL: postgresql+asyncpg://vigilo:${POSTGRES_PASSWORD:-vigilo-dev-secret}@postgres:5432/vigilo
@@ -149,11 +156,34 @@ services:
     depends_on:
       - api
     ports:
-      - "3000:3000"
+      # Loopback-only — see the api service's identical note above.
+      - "127.0.0.1:3000:3000"
     environment:
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?set CLERK_SECRET_KEY in .env}
+
+  # Reverse proxy + automatic HTTPS for a production VPS deployment. Not
+  # needed for purely local self-hosting (web/api are still reachable at
+  # http://localhost:3000/8000 above) — see docs/self-hosting.md.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:-}
+      API_DOMAIN: ${API_DOMAIN:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - vigilo_self_host_caddy_data:/data
+      - vigilo_self_host_caddy_config:/config
 
 volumes:
   vigilo_self_host_postgres_data:
   vigilo_self_host_redis_data:
   vigilo_self_host_minio_data:
+  vigilo_self_host_caddy_data:
+  vigilo_self_host_caddy_config:

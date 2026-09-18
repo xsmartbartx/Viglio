@@ -1,0 +1,14 @@
+# Reverse proxy + automatic HTTPS for a production VPS deployment
+# (docs/self-hosting.md's "Production VPS deployment" section). Caddy
+# issues and renews Let's Encrypt certificates for WEB_DOMAIN/API_DOMAIN
+# automatically — no separate certbot/TLS config needed. Talks to `web`/
+# `api` by their compose service names, over the internal Docker network,
+# never through a published host port.
+
+{$WEB_DOMAIN} {
+	reverse_proxy web:3000
+}
+
+{$API_DOMAIN} {
+	reverse_proxy api:8000
+}
