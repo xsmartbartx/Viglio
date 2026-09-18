@@ -90,3 +90,20 @@ async def test_get_branding_profile_before_any_update_is_all_null(client, busine
 async def test_branding_profile_endpoints_require_authentication(client):
     response = await client.get("/v1/me/branding-profile")
     assert response.status_code == 401
+
+
+async def test_update_branding_profile_is_a_partial_update(client, business_account):
+    await client.put(
+        "/v1/me/branding-profile",
+        json={"logo_url": "https://example.com/logo.png", "primary_color": "#112233"},
+    )
+
+    response = await client.put(
+        "/v1/me/branding-profile", json={"footer_text": "Provided by Acme Security"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["footer_text"] == "Provided by Acme Security"
+    assert body["logo_url"] == "https://example.com/logo.png"
+    assert body["primary_color"] == "#112233"

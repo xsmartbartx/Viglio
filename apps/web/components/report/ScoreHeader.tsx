@@ -14,7 +14,7 @@ export function ScoreHeader({ report }: { report: ScanReportResponse }) {
 
   return (
     <div
-      className="border-b pb-6 mb-6"
+      className="border-b border-black/10 dark:border-white/10 pb-6 mb-6"
       style={
         branding?.primary_color
           ? { borderBottomColor: branding.primary_color, borderBottomWidth: 3 }

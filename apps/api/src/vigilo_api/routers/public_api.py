@@ -29,6 +29,7 @@ from fastapi.responses import StreamingResponse
 from vigilo_api.api_key_auth import require_scope
 from vigilo_api.deps import QueueDep, SessionDep
 from vigilo_api.report_rendering import get_branding_for_target, render_scan_report
+from vigilo_api.routers.scans import _DENYLIST, REGISTRY_VERSION
 from vigilo_api.schemas import (
     MonitorCreate,
     MonitorResponse,
@@ -80,7 +81,6 @@ ProjectReadDep = Annotated[Account, require_scope("project:read")]
 MonitorReadDep = Annotated[Account, require_scope("monitor:read")]
 MonitorWriteDep = Annotated[Account, require_scope("monitor:write")]
 
-REGISTRY_VERSION = "0.1"
 _SCANS_MONTHLY_WINDOW = timedelta(days=30)
 _STREAM_POLL_SECONDS = 1.0
 _STREAM_MAX_SECONDS = 120.0
