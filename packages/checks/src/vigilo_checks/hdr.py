@@ -67,7 +67,8 @@ CHECK_HSTS_PRESENT = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security"],
         remediation_template="Add a `Strict-Transport-Security: max-age=31536000; includeSubDomains` response header.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-319",
+),
     evaluate=_hsts_present,
 )
 
@@ -109,7 +110,8 @@ CHECK_HSTS_MAX_AGE = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security"],
         remediation_template="Set `max-age=31536000` (one year) or more on the Strict-Transport-Security header.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-319",
+),
     evaluate=_hsts_max_age,
 )
 
@@ -142,7 +144,8 @@ CHECK_HSTS_INCLUDE_SUBDOMAINS = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security"],
         remediation_template="Add `includeSubDomains` to the Strict-Transport-Security header.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-319",
+),
     evaluate=_hsts_include_subdomains,
 )
 
@@ -171,7 +174,8 @@ CHECK_CSP_PRESENT = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy"],
         remediation_template="Add a Content-Security-Policy header starting from `default-src 'self'` and widening only as needed.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-693",
+),
     evaluate=_csp_present,
 )
 
@@ -206,7 +210,8 @@ CHECK_CSP_NO_UNSAFE_INLINE = Check(
         remediation_template="Remove 'unsafe-inline' from script-src/default-src; use nonces or hashes for any inline scripts you need.",
         false_positive_notes="A CSP that relies entirely on 'strict-dynamic' with nonces may still list 'unsafe-inline' as a fallback for old browsers, which is intentional and not a real weakness.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-693",
+),
     evaluate=_csp_no_unsafe_inline,
 )
 
@@ -237,7 +242,8 @@ CHECK_X_CONTENT_TYPE_OPTIONS = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options"],
         remediation_template="Add `X-Content-Type-Options: nosniff` to every response.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-693",
+),
     evaluate=_x_content_type_options,
 )
 
@@ -271,7 +277,8 @@ CHECK_CLICKJACKING_PROTECTION = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options"],
         remediation_template="Add `X-Frame-Options: DENY` (or `SAMEORIGIN`), or a CSP `frame-ancestors` directive.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-1021",
+),
     evaluate=_clickjacking_protection,
 )
 
@@ -302,7 +309,8 @@ CHECK_REFERRER_POLICY = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Referrer-Policy"],
         remediation_template="Add `Referrer-Policy: strict-origin-when-cross-origin` (or stricter).",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-200",
+),
     evaluate=_referrer_policy,
 )
 
@@ -331,7 +339,8 @@ CHECK_PERMISSIONS_POLICY = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Permissions-Policy"],
         remediation_template="Add a Permissions-Policy header disabling features the site doesn't use, e.g. `camera=(), microphone=(), geolocation=()`.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-693",
+),
     evaluate=_permissions_policy,
 )
 
@@ -363,7 +372,8 @@ CHECK_SERVER_NO_VERSION = Check(
         remediation_template="Configure the server/proxy to omit or generalize the Server header (no version number).",
         false_positive_notes="Some CDNs include a version-shaped string that is actually a static product identifier, not a real version signal.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-497",
+),
     evaluate=_server_header_no_version,
 )
 
@@ -392,7 +402,8 @@ CHECK_X_POWERED_BY_ABSENT = Check(
         references=["https://owasp.org/www-project-secure-headers/"],
         remediation_template="Disable the X-Powered-By header in your framework's configuration.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-497",
+),
     evaluate=_x_powered_by_absent,
 )
 
@@ -420,7 +431,8 @@ CHECK_CONTENT_TYPE_PRESENT = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type"],
         remediation_template="Set an explicit Content-Type header on every response.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-693",
+),
     evaluate=_content_type_present,
 )
 

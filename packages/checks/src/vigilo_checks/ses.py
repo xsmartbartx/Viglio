@@ -47,7 +47,8 @@ CHECK_COOKIES_SECURE = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#restrict_access_to_cookies"],
         remediation_template="Add the `Secure` attribute to every cookie your application sets.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-614",
+),
     evaluate=_cookies_secure,
 )
 
@@ -80,7 +81,8 @@ CHECK_COOKIES_HTTP_ONLY = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#restrict_access_to_cookies"],
         remediation_template="Add the `HttpOnly` attribute to every cookie that doesn't need JavaScript access.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-1004",
+),
     evaluate=_cookies_http_only,
 )
 
@@ -113,7 +115,8 @@ CHECK_COOKIES_SAMESITE_SET = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite"],
         remediation_template="Set `SameSite=Lax` (or `Strict`) explicitly on every cookie.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-1275",
+),
     evaluate=_cookies_samesite_set,
 )
 
@@ -147,7 +150,8 @@ CHECK_COOKIES_SAMESITE_NONE_REQUIRES_SECURE = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite#none"],
         remediation_template="Add `Secure` to every cookie that sets `SameSite=None`.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-1275",
+),
     evaluate=_cookies_samesite_none_requires_secure,
 )
 
@@ -177,7 +181,8 @@ CHECK_NO_SESSION_ID_IN_URL = Check(
         remediation_template="Move session identifiers out of the URL and into a cookie or an Authorization header.",
         false_positive_notes="A regex over the first 8KB of the homepage body only, matching a fixed list of common session-parameter names.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-598",
+),
     evaluate=_no_session_id_in_url,
 )
 
@@ -214,7 +219,8 @@ CHECK_COOKIE_LIFETIME_SANE = Check(
         remediation_template="Shorten the session cookie's Max-Age (or drop it so it expires with the browser session) and use refresh tokens for longer-lived sign-in.",
         false_positive_notes="Matches cookie names containing 'session', 'sid', 'auth' or 'token' — a cookie legitimately named this way for a non-session purpose (e.g. a long-lived CSRF token) may be a false positive.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-613",
+),
     evaluate=_cookie_lifetime_sane,
 )
 

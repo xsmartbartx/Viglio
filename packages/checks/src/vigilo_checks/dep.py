@@ -70,7 +70,8 @@ CHECK_SRI_PRESENT = Check(
         remediation_template="Add an `integrity=\"sha384-...\"` attribute (and `crossorigin=\"anonymous\"`) to every cross-origin `<script>` tag.",
         false_positive_notes="Only scans the first 8KB of the homepage's HTML; scripts injected dynamically by other JS are not seen.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-353",
+),
     evaluate=_sri_present_on_third_party_scripts,
 )
 
@@ -101,7 +102,8 @@ CHECK_NO_KNOWN_OLD_LIBRARY = Check(
         remediation_template="Upgrade the flagged library to a currently-maintained major version.",
         false_positive_notes="Detects the version from the script's filename/URL only, against a small fixed table — a self-hosted, renamed, or bundled copy will not be detected.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-1104",
+),
     evaluate=_no_known_old_library,
 )
 
@@ -136,7 +138,8 @@ CHECK_BOUNDED_THIRD_PARTY_ORIGINS = Check(
         remediation_template="Consolidate or self-host third-party scripts where practical; audit whether every included origin is still needed.",
         false_positive_notes="A high count is a supply-chain risk *signal*, not proof of a problem — some legitimate sites genuinely need many integrations.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # surface-area minimization, not a discrete weakness
+),
     evaluate=_bounded_third_party_origins,
 )
 
@@ -174,7 +177,8 @@ CHECK_NO_UNPINNED_CDN_VERSION = Check(
         remediation_template="Pin every CDN-loaded script to an exact version (e.g. `react@18.3.1`, not `react` or `react@latest`).",
         false_positive_notes="Only recognizes jsDelivr and unpkg URL shapes; other CDNs are not covered, and npm-scoped packages (`@scope/name`) are not correctly parsed (the '@' in the scope name is mistaken for a version separator).",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-1357",
+),
     evaluate=_no_unpinned_cdn_version,
 )
 

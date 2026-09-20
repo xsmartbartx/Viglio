@@ -65,7 +65,8 @@ CHECK_PRIVACY_POLICY_LINKED = Check(
         remediation_template="Add a visible link to a privacy policy in the site footer or navigation.",
         false_positive_notes="Detects a link whose href or text mentions 'privacy' — a policy linked only from a sub-page not reachable from the homepage will be missed.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # legal-document linkage, not CWE scope
+),
     evaluate=_privacy_policy_linked,
 )
 
@@ -94,7 +95,8 @@ CHECK_TERMS_LINKED = Check(
         remediation_template="Add a visible link to your terms of service in the site footer or navigation.",
         false_positive_notes="Detects a link whose href or text mentions 'terms' or 'tos' — a policy linked only from a sub-page not reachable from the homepage will be missed.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # legal-document linkage, not CWE scope
+),
     evaluate=_terms_linked,
 )
 
@@ -123,7 +125,8 @@ CHECK_COOKIE_POLICY_LINKED = Check(
         remediation_template="Add a visible link to a cookie policy, distinct from (or as a section of) the privacy policy.",
         false_positive_notes="A site that sets no non-essential cookies at all does not need one — this check does not currently correlate with actual cookie usage.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # legal-document linkage, not CWE scope
+),
     evaluate=_cookie_policy_linked,
 )
 
@@ -152,7 +155,8 @@ CHECK_CONTACT_INFO_PRESENT = Check(
         remediation_template="Add a mailto: link or a link to a contact page in the site footer or navigation.",
         false_positive_notes="Detects a mailto: link or a link mentioning 'contact' — a contact form embedded without either pattern will be missed.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # legal-document linkage, not CWE scope
+),
     evaluate=_contact_info_present,
 )
 

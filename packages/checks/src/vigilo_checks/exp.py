@@ -64,7 +64,8 @@ CHECK_SECURITY_TXT_PRESENT = Check(
         references=["https://www.rfc-editor.org/rfc/rfc9116"],
         remediation_template="Publish a security.txt file at /.well-known/security.txt with a contact method for vulnerability reports.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # disclosure-channel presence, not a weakness
+),
     evaluate=_security_txt_present,
 )
 
@@ -92,7 +93,8 @@ CHECK_ROBOTS_TXT_PRESENT = Check(
         references=["https://developers.google.com/search/docs/crawling-indexing/robots/intro"],
         remediation_template="Add a robots.txt file if you want to guide crawler behavior; not required for security.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # info page, not a weakness
+),
     evaluate=_robots_txt_present,
 )
 
@@ -120,7 +122,8 @@ CHECK_SITEMAP_PRESENT = Check(
         references=["https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview"],
         remediation_template="Add a sitemap.xml if you want to help search engines index your pages; not required for security.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # info page, not a weakness
+),
     evaluate=_sitemap_present,
 )
 
@@ -148,7 +151,8 @@ CHECK_MANIFEST_PRESENT = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest"],
         remediation_template="Add a manifest.json if you want PWA install support; not required for security.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # info page, not a weakness
+),
     evaluate=_manifest_present,
 )
 
@@ -177,7 +181,8 @@ CHECK_NO_VERBOSE_ERROR_PAGE = Check(
         remediation_template="Disable debug mode in production and configure a generic error page for unhandled exceptions.",
         false_positive_notes="Matches distinctive framework debug-page and stack-trace signatures (Django, Flask/Werkzeug, PHP, Rails, ASP.NET, raw Node stack frames) within the first 8KB of the homepage body only.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-209",
+),
     evaluate=_no_verbose_error_page,
 )
 
@@ -212,7 +217,8 @@ CHECK_NO_REPO_METADATA_EXPOSED = Check(
         references=["https://cwe.mitre.org/data/definitions/527.html"],
         remediation_template="Block access to .git/.svn/.hg directories at the web server or CDN level; never deploy version-control metadata into the public web root.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-527",  # matches existing reference
+),
     evaluate=_no_repo_metadata_exposed,
 )
 
@@ -243,7 +249,8 @@ CHECK_NO_BACKUP_ARTEFACTS_EXPOSED = Check(
         references=["https://cwe.mitre.org/data/definitions/530.html"],
         remediation_template="Remove backup/archive files from the public web root; store backups outside any web-served directory.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-530",  # matches existing reference
+),
     evaluate=_no_backup_artefacts_exposed,
 )
 
@@ -274,7 +281,8 @@ CHECK_NO_EXPOSED_CONFIG_FILES = Check(
         references=["https://cwe.mitre.org/data/definitions/538.html"],
         remediation_template="Remove configuration files from the public web root; load secrets from environment variables or a secret manager instead.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-538",  # matches existing reference
+),
     evaluate=_no_exposed_config_files,
 )
 
@@ -305,7 +313,8 @@ CHECK_NO_DEBUG_ROUTES_EXPOSED = Check(
         references=["https://cwe.mitre.org/data/definitions/215.html"],
         remediation_template="Disable debug/diagnostic endpoints in production, or require authentication in front of them.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-215",  # matches existing reference
+),
     evaluate=_no_debug_routes_exposed,
 )
 
@@ -337,7 +346,8 @@ CHECK_NO_TEST_ROUTES_EXPOSED = Check(
         remediation_template="Remove test/staging routes from the production build, or gate them behind authentication.",
         false_positive_notes="A reachable /test or /staging path is not always a real issue on its own — treat as a prompt to confirm it doesn't bypass normal authorization.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-489",  # matches existing reference
+),
     evaluate=_no_test_routes_exposed,
 )
 
@@ -369,7 +379,8 @@ CHECK_NO_DIRECTORY_LISTING_ENABLED = Check(
         remediation_template="Disable directory listing (autoindex) on the web server for every publicly reachable directory.",
         false_positive_notes="Detection matches common autoindex title/heading patterns (Apache/nginx); a custom directory-browsing UI could evade or false-positive this heuristic.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-548",  # matches existing reference
+),
     evaluate=_no_directory_listing_enabled,
 )
 
@@ -401,7 +412,8 @@ CHECK_NO_DEFAULT_ADMIN_PANEL_EXPOSED = Check(
         remediation_template="Move the admin panel off its default path, restrict it by IP allowlist, or require a second factor in front of it.",
         false_positive_notes="Reachability alone is not proof of weak access control — a properly authenticated admin panel at a default path is lower risk than this check's severity implies on its own; treat as a hardening prompt, not confirmed compromise.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-1188",
+),
     evaluate=_no_default_admin_panel_exposed,
 )
 

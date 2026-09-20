@@ -106,6 +106,14 @@ class CheckManifest(BaseModel):
     # a probe that varies its own request count per check, e.g. the `paths`
     # probe (Phase 6).
     budget_cost: int = Field(default=0, ge=0)
+    # CWE identifier (e.g. "CWE-319") for this check's underlying weakness,
+    # feeding SARIF export's rule-taxonomy tagging (packages/reporting's
+    # build_sarif_report(), docs/check-catalog.md's CWE column). `None` is
+    # a deliberate, explicit choice for checks that aren't CWE-taxonomy
+    # software weaknesses at all — compliance/legal-linkage or pure
+    # best-practice checks (docs/build-roadmap.md's SARIF entry has the
+    # full per-check reasoning) — never a silent gap.
+    cwe_id: str | None = None
 
 
 class Evidence(BaseModel):

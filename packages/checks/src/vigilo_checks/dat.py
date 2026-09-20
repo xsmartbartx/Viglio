@@ -41,7 +41,8 @@ CHECK_NO_SERVICE_ROLE_KEY_EXPOSED = Check(
         references=["https://supabase.com/docs/guides/api/api-keys"],
         remediation_template="Revoke the exposed service-role key immediately, rotate it, and ensure only the anon/publishable key is ever shipped to the client.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-798",
+),
     evaluate=_no_service_role_key_exposed,
 )
 
@@ -76,7 +77,8 @@ CHECK_SUPABASE_SCHEMA_NOT_INTROSPECTABLE = Check(
         remediation_template="Enable and configure row-level security policies on every table so the anon role only sees what it should.",
         false_positive_notes="Schema introspectability alone does not prove sensitive row data is exposed — it indicates the API surface is visible, which is the first step an attacker would take next.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-284",
+),
     evaluate=_supabase_schema_not_introspectable,
 )
 
@@ -106,7 +108,8 @@ CHECK_FIREBASE_NOT_PUBLICLY_READABLE = Check(
         references=["https://firebase.google.com/docs/database/security"],
         remediation_template="Set Firebase Realtime Database security rules to require authentication before any read or write.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-284",
+),
     evaluate=_firebase_not_publicly_readable,
 )
 
@@ -138,7 +141,8 @@ CHECK_NO_PUBLIC_BUCKET_LISTING = Check(
         references=["https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html"],
         remediation_template="Disable public listing on the bucket (S3 Block Public Access / GCS uniform bucket-level access) and grant object-level access only where actually needed.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-284",
+),
     evaluate=_no_public_bucket_listing,
 )
 

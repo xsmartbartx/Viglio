@@ -88,7 +88,8 @@ CHECK_NO_AWS_KEY = Check(
         references=["https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"],
         remediation_template="Revoke the exposed AWS key immediately and remove it from client-side code; use a scoped backend proxy or STS temporary credentials instead.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-798",
+),
     evaluate=_no_aws_key,
 )
 
@@ -109,7 +110,8 @@ CHECK_NO_STRIPE_SECRET_KEY = Check(
         references=["https://docs.stripe.com/keys#safe-keys"],
         remediation_template="Revoke the exposed key immediately; only ever use the publishable key client-side, and move secret-key calls to your backend.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-798",
+),
     evaluate=_no_stripe_secret,
 )
 
@@ -130,7 +132,8 @@ CHECK_NO_SLACK_TOKEN = Check(
         references=["https://api.slack.com/authentication/token-types"],
         remediation_template="Revoke the exposed Slack token and move any Slack API calls to a backend service.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-798",
+),
     evaluate=_no_slack_token,
 )
 
@@ -151,7 +154,8 @@ CHECK_NO_GITHUB_GITLAB_TOKEN = Check(
         references=["https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github"],
         remediation_template="Revoke the exposed token immediately and audit recent repository activity for unauthorized access.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-798",
+),
     evaluate=_no_github_gitlab_token,
 )
 
@@ -172,7 +176,8 @@ CHECK_NO_PRIVATE_KEY_BLOCK = Check(
         references=["https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password"],
         remediation_template="Rotate the exposed key immediately and remove it from any client-shipped code.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-321",
+),
     evaluate=_no_private_key_block,
 )
 
@@ -194,7 +199,8 @@ CHECK_NO_GENERIC_SECRET = Check(
         remediation_template="Confirm whether the flagged value is a real secret; if so, revoke and move it server-side. If it's a public identifier (e.g. a publishable key), consider renaming the variable to avoid this pattern.",
         false_positive_notes="Matches any 20+ character opaque value assigned to a *_KEY/*_SECRET/*_TOKEN-named identifier — publishable/public keys that happen to be named this way will misfire as a failure.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-798",
+),
     evaluate=_no_generic_secret,
 )
 
@@ -223,7 +229,8 @@ CHECK_NO_SOURCE_MAP_COMMENT = Check(
         remediation_template="Disable source map generation for production builds, or serve them only to authenticated internal users.",
         false_positive_notes="Detects only the in-file comment referencing a source map; it does not verify the map file itself is actually reachable.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-540",
+),
     evaluate=_no_source_map_comment,
 )
 
@@ -252,7 +259,8 @@ CHECK_NO_DEV_BUILD_MARKER = Check(
         remediation_template="Ensure the production build pipeline sets NODE_ENV=production (or the framework's equivalent) before deployment.",
         false_positive_notes="Matches a small, React-centric set of known development-build string signatures; other frameworks' dev-mode markers are not covered.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-489",
+),
     evaluate=_no_dev_build_marker,
 )
 
@@ -283,7 +291,8 @@ CHECK_BOUNDED_CONSOLE_CALLS = Check(
         remediation_template="Strip debug console calls from the production build (most bundlers support this via a build plugin or a linter rule).",
         false_positive_notes="Counts raw occurrences of the call syntax across fetched scripts, including inside third-party libraries the site didn't author.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-215",
+),
     evaluate=_bounded_console_calls,
 )
 
@@ -313,7 +322,8 @@ CHECK_NO_HARDCODED_INTERNAL_HOSTNAME = Check(
         remediation_template="Remove hardcoded internal/staging URLs from production code; use environment-specific configuration instead.",
         false_positive_notes="A private IP or 'staging.'/'internal.' hostname committed intentionally for a documented local-dev fallback will misfire as a failure.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-200",
+),
     evaluate=_no_hardcoded_internal_hostname,
 )
 

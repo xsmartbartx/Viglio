@@ -63,7 +63,8 @@ CHECK_TRACKER_WITHOUT_CONSENT_LIBRARY = Check(
         remediation_template="Gate analytics/ad-tech script loading behind an explicit consent banner (or add a recognized CMP if one already exists but isn't detected).",
         false_positive_notes="Matches a fixed list of common tracker and CMP library signatures in the first 8KB of the homepage — a custom-built consent solution, or a CMP that defers script injection via a mechanism this regex can't see, will misfire as a failure.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-359",
+),
     evaluate=_tracker_without_consent_library,
 )
 
@@ -95,7 +96,8 @@ CHECK_GA_USES_CONSENT_MODE = Check(
         remediation_template="Add a `gtag('consent', 'default', {...})` call before the GA tag loads, denying analytics/ad storage until consent is granted.",
         false_positive_notes="Only recognizes the literal `gtag('consent','default'` call pattern; consent mode configured through Google Tag Manager's UI without this literal string will misfire as a failure.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # GA's own opt-in feature, not a weakness
+),
     evaluate=_ga_uses_consent_mode,
 )
 
@@ -127,7 +129,8 @@ CHECK_NO_PRECHECKED_MARKETING_CHECKBOX = Check(
         remediation_template="Remove the `checked` attribute from marketing/newsletter opt-in checkboxes; require an explicit user action.",
         false_positive_notes="A narrow text-proximity heuristic (150 characters either side of the checkbox) — a checkbox whose marketing context is conveyed only via CSS/JS rather than nearby text will be missed, and an unrelated pre-checked box near marketing copy could misfire.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # consent-UX/dark-pattern, not CWE scope
+),
     evaluate=_no_prechecked_marketing_checkbox,
 )
 
@@ -163,7 +166,8 @@ CHECK_CONSENT_NOTICE_REFERENCES_PRIVACY_POLICY = Check(
         remediation_template="Add a link to the privacy policy directly within the cookie/consent banner text.",
         false_positive_notes="A ~800-character text-proximity heuristic around the word 'cookie' — a consent banner injected far from any mention of 'cookie' in the raw HTML (e.g. built entirely by JS with generic wording) will misfire as a failure.",
         introduced_in="0.1",
-    ),
+    cwe_id=None,  # documentation linkage
+),
     evaluate=_consent_notice_references_privacy_policy,
 )
 

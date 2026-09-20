@@ -40,7 +40,8 @@ CHECK_HTTPS_ENFORCED = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/Security/Transport_Layer_Security"],
         remediation_template="Terminate TLS at your host/CDN and redirect all HTTP traffic to HTTPS.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-319",
+),
     evaluate=_https_enforced,
 )
 
@@ -69,7 +70,8 @@ CHECK_HANDSHAKE_VERIFIES = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/Security/Transport_Layer_Security"],
         remediation_template="Install a certificate from a publicly trusted CA that covers this exact hostname (or its wildcard).",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-295",
+),
     evaluate=_handshake_verifies,
 )
 
@@ -100,7 +102,8 @@ CHECK_CERT_NOT_EXPIRED = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/Security/Transport_Layer_Security"],
         remediation_template="Renew the TLS certificate immediately.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-298",
+),
     evaluate=_cert_not_expired,
 )
 
@@ -131,7 +134,8 @@ CHECK_CERT_NOT_EXPIRING_SOON = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/Security/Transport_Layer_Security"],
         remediation_template="Renew the certificate now, or fix whatever is blocking auto-renewal (ACME/Let's Encrypt renewal job, DNS validation, etc.).",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-298",
+),
     evaluate=_cert_not_expiring_soon,
 )
 
@@ -162,7 +166,8 @@ CHECK_PROTOCOL_VERSION_MODERN = Check(
         references=["https://www.rfc-editor.org/rfc/rfc8996"],
         remediation_template="Disable TLS 1.0/1.1 in your server or load balancer's TLS configuration; require TLS 1.2 or 1.3.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-327",
+),
     evaluate=_protocol_version_modern,
 )
 
@@ -193,7 +198,8 @@ CHECK_NO_MIXED_CONTENT = Check(
         remediation_template="Change every http:// resource reference to https:// (or a protocol-relative/relative URL).",
         false_positive_notes="This is a regex over the first 8KB of the HTML body only — resources referenced from JS or below that cutoff are not seen.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-319",
+),
     evaluate=_no_mixed_content,
 )
 
@@ -229,7 +235,8 @@ CHECK_CERT_VALIDITY_WINDOW = Check(
         references=["https://cabforum.org/baseline-requirements/"],
         remediation_template="Reissue the certificate with a validity period of 398 days or fewer.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-295",
+),
     evaluate=_cert_validity_window,
 )
 
@@ -261,7 +268,8 @@ CHECK_NO_WEAK_CIPHER = Check(
         references=["https://developer.mozilla.org/en-US/docs/Web/Security/Transport_Layer_Security"],
         remediation_template="Remove legacy cipher suites (RC4, 3DES, NULL, EXPORT, MD5-based) from your server's TLS configuration.",
         introduced_in="0.1",
-    ),
+    cwe_id="CWE-327",
+),
     evaluate=_no_weak_cipher,
 )
 
