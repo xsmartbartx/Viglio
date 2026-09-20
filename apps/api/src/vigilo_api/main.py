@@ -15,6 +15,7 @@ from vigilo_api.routers import (
     reports,
     scans,
     share_links,
+    suppressions,
     targets,
 )
 from vigilo_core.config import config
@@ -52,6 +53,7 @@ app.include_router(monitors.router)
 app.include_router(badge.router)
 app.include_router(api_keys.router)
 app.include_router(branding.router)
+app.include_router(suppressions.router)
 app.include_router(public_api.router)
 
 
