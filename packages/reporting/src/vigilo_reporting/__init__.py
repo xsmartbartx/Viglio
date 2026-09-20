@@ -31,6 +31,7 @@ from vigilo_reporting.models import (
 )
 from vigilo_reporting.pdf import render_pdf
 from vigilo_reporting.remediation import generate_remediation, template_remediation
+from vigilo_reporting.sarif import build_sarif_report
 
 __all__ = [
     "ReportDocument",
@@ -39,6 +40,7 @@ __all__ = [
     "RemediationPrompt",
     "RemediationView",
     "build_report",
+    "build_sarif_report",
     "generate_remediation",
     "template_remediation",
     "render_pdf",
