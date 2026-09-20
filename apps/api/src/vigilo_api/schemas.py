@@ -271,3 +271,21 @@ class ProjectResponse(BaseModel):
     project_id: uuid.UUID
     name: str
     created_at: datetime
+
+
+class SuppressionCreate(BaseModel):
+    fingerprint: str
+    check_id: str
+    reason: str
+    expires_at: datetime | None = None
+
+
+class SuppressionResponse(BaseModel):
+    suppression_id: uuid.UUID
+    target_id: uuid.UUID
+    fingerprint: str
+    check_id: str
+    reason: str
+    expires_at: datetime | None
+    created_by_account_id: uuid.UUID
+    created_at: datetime

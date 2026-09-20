@@ -71,6 +71,7 @@ from vigilo_project.repository import (
     count_targets_for_project,
     create_target,
     get_or_create_default_project,
+    get_suppressed_fingerprints_for_target,
     get_target,
     get_target_by_origin,
     has_valid_ownership_proof,
@@ -327,8 +328,11 @@ async def public_get_scan_report_sarif(
 
     target = await get_target(session, job.target_id)
     findings = await get_findings_for_scan(session, scan.id)
+    suppressed_fingerprints = await get_suppressed_fingerprints_for_target(
+        session, job.target_id, datetime.now(UTC)
+    )
     sarif = build_sarif_report(
-        target.origin if target else "", findings, MANIFESTS_BY_CHECK_ID
+        target.origin if target else "", findings, MANIFESTS_BY_CHECK_ID, suppressed_fingerprints
     )
     return JSONResponse(content=sarif, media_type="application/sarif+json")
 

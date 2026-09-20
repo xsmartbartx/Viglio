@@ -17,7 +17,11 @@ from vigilo_core.models import Finding, Score
 from vigilo_identity.repository import get_account_by_id, get_branding_profile
 from vigilo_orchestrator.models import Scan
 from vigilo_orchestrator.remediation import get_remediations_for_findings
-from vigilo_project.repository import get_project, get_suppressed_fingerprints_for_target, get_target
+from vigilo_project.repository import (
+    get_project,
+    get_suppressed_fingerprints_for_target,
+    get_target,
+)
 from vigilo_reporting import build_report
 
 MANIFESTS_BY_CHECK_ID = {check.manifest.check_id: check.manifest for check in REGISTRY}
