@@ -70,7 +70,6 @@ still deny), and a redirect-into-internal-space case.
 
 | Concern | Where it will live | Blocked on |
 | --- | --- | --- |
-| `resolve_authorization()`'s 24h abuse ceiling (per-account, per-target-host, global) | `packages/security` | **Narrowed, not closed, by Phase 9** — Phase 9 added a Redis-backed rate governor (§9), but scoped to the key-authenticated public API's per-account request rate, a different concern from this row. The caller (`apps/api/src/vigilo_api/routers/scans.py`) still hardcodes `recent_scan_count_24h=0` on every call rather than computing a real count from the database, so `resolve_authorization()`'s own ceiling still never triggers. Found during Phase 6 (which fixed the analogous hardcoded-tier gap in the same function, see the ADR-0003 Phase 6 addendum). Phase 7 added a *separate*, plan-scoped monthly scan quota (`vigilo_billing`'s `SCANS_MONTHLY` meter, `docs/modules.md` §11) but deliberately left this 24h abuse ceiling alone — different concern (abuse rate vs. plan entitlement), not in scope any phase yet. |
 | Abuse heuristics (enumeration patterns, target churn) | `packages/security` | Scan history to detect patterns against (Phase 3+) |
 | Redirect same-registrable-domain restriction | `packages/security/egress_guard.py` | Public-suffix-list dependency (Phase 1) |
 | Worker network isolation (the scan zone has no route to internal services) | Deployment topology, not application code | Phase 1 deployment target |
@@ -95,12 +94,21 @@ reducing it to `AuthorizationRequest`'s fields before calling this.
 1. `denylisted` or `target_opt_out` → **deny outright**. No scan, no
    `Account`/`Target` row created — only the audit event.
 2. `recent_scan_count_24h` over a fixed ceiling (20, a Phase 3 scope trim —
-   the full Redis-backed governor is Phase 6/7) → **deny**, code
-   `RATE_LIMIT_EXCEEDED`. **This branch is fully implemented and tested
-   here, but currently unreachable in practice** — `apps/api`'s
-   `submit_scan()` always passes `recent_scan_count_24h=0`, never a real
-   count (§2's "not yet implemented" table has the detail). The ceiling
-   logic itself is correct; nothing yet feeds it real data.
+   the full Redis-backed governor is Phase 6/7, and is a *different*
+   concern from this one: §9's public-API rate limiter is per-account
+   request throughput, this is per-target scan volume) → **deny**, code
+   `RATE_LIMIT_EXCEEDED`. **Implemented and live** (post-Phase-9 gap
+   closure) — `count_scan_jobs_for_target_since()`
+   (`packages/orchestrator/src/vigilo_orchestrator/service.py`) feeds a
+   real, per-target rolling-24h count from all three callers
+   (`apps/api`'s `submit_scan()`/`public_submit_scan()`, and
+   `apps/scanner`'s scheduled-monitor re-authorization). Scoped
+   per-target, not per-account or global — the narrowest of the three
+   candidates this row's table entry used to list side by side, matching
+   `detect_regression()`'s identical per-target precedent
+   (`list_ever_failed_fingerprints_before()`). A brand-new target's count
+   is `0` (nothing to count yet, not a loophole — the very first scan of
+   a target can never be denied by this ceiling).
 3. `requested_tier == ACTIVE` without both `target_verification_status ==
    ACTIVE` *and* `ownership_proof_valid` → **downgrade to passive, not a
    rejection**. ADR-0003 says tier resolution "never upgrades" — a request

@@ -30,3 +30,16 @@ class OwnershipProof(BaseModel):
     expires_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class Suppression(BaseModel):
+    id: uuid.UUID
+    target_id: uuid.UUID
+    fingerprint: str
+    check_id: str
+    reason: str
+    expires_at: datetime | None
+    created_by_account_id: uuid.UUID
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
