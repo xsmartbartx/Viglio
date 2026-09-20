@@ -1,0 +1,64 @@
+name: 'Vigilo Security Scan'
+description: >-
+  Scan a deployed URL for security/compliance issues and upload the
+  findings to GitHub Code Scanning as SARIF. Runs the open-source Vigilo
+  CLI standalone — no account, no API key, no signup required.
+author: 'Vigilo'
+
+inputs:
+  target-url:
+    description: 'The deployed URL to scan, e.g. a preview/staging deployment'
+    required: true
+  fail-on:
+    description: >-
+      Minimum severity that fails the job: critical, high, medium, or low.
+      Leave unset to never fail the build regardless of findings.
+    required: false
+    default: ''
+
+outputs:
+  sarif-file:
+    description: 'Path to the generated SARIF file'
+    value: ${{ steps.scan.outputs.sarif-file }}
+
+# Composite, not a Docker action, so that the SARIF upload can happen
+# *before* this action fails the job on a breached --fail-on threshold —
+# a Docker action's single entrypoint can't sequence that. Only one scan
+# runs: apps/cli/src/vigilo_cli/main.py's --sarif and --fail-on read the
+# same scan result, so the SARIF content and the pass/fail decision can
+# never disagree with each other (two separate live scans of the same
+# target could legitimately return different results, so this isn't just
+# an optimization).
+runs:
+  using: 'composite'
+  steps:
+    - name: Build the Vigilo CLI image
+      shell: bash
+      run: |
+        docker build -t vigilo-cli \
+          -f "${{ github.action_path }}/../../../apps/cli/Dockerfile" \
+          "${{ github.action_path }}/../../.."
+
+    - name: Scan (one run produces both the SARIF file and the pass/fail decision)
+      id: scan
+      shell: bash
+      run: |
+        set +e
+        FAIL_ARGS=""
+        if [ -n "${{ inputs.fail-on }}" ]; then
+          FAIL_ARGS="--fail-on ${{ inputs.fail-on }}"
+        fi
+        docker run --rm vigilo-cli scan "${{ inputs.target-url }}" --sarif $FAIL_ARGS \
+          > vigilo-results.sarif
+        echo "exit-code=$?" >> "$GITHUB_OUTPUT"
+        echo "sarif-file=vigilo-results.sarif" >> "$GITHUB_OUTPUT"
+
+    - name: Upload SARIF to Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif-file }}
+
+    - name: Enforce fail-on threshold
+      if: steps.scan.outputs.exit-code != '0'
+      shell: bash
+      run: exit 1
