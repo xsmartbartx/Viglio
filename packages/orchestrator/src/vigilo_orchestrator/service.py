@@ -75,6 +75,22 @@ async def count_scan_jobs_for_targets(
     return result.scalar_one()
 
 
+async def count_scan_jobs_for_target_since(
+    session: AsyncSession, target_id: uuid.UUID, since: datetime
+) -> int:
+    """Singular-target sibling of `count_scan_jobs_for_targets` above —
+    feeds `resolve_authorization()`'s `recent_scan_count_24h` (an abuse
+    ceiling, a different concern from that function's plan-quota meter:
+    docs/security.md §2). Scoped per-target, matching
+    `list_ever_failed_fingerprints_before()`'s identical precedent."""
+    result = await session.execute(
+        select(func.count())
+        .select_from(ScanJobRow)
+        .where(ScanJobRow.target_id == target_id, ScanJobRow.queued_at >= since)
+    )
+    return result.scalar_one()
+
+
 async def advance(session: AsyncSession, scan_job_id: uuid.UUID, new_status: str) -> ScanJob:
     row = await session.get(ScanJobRow, scan_job_id)
     if row is None:

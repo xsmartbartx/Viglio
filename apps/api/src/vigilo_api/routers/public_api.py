@@ -60,6 +60,7 @@ from vigilo_orchestrator.reports import get_findings_for_scan
 from vigilo_orchestrator.service import (
     TERMINAL_STATUSES,
     advance,
+    count_scan_jobs_for_target_since,
     count_scan_jobs_for_targets,
     create_scan_job,
     get_scan_by_job_id,
@@ -129,6 +130,12 @@ async def public_submit_scan(
     ownership_proof_valid = (
         await has_valid_ownership_proof(session, existing_target.id) if existing_target else False
     )
+    recent_scan_count_24h = 0
+    if existing_target is not None:
+        since_24h = datetime.now(UTC) - timedelta(hours=24)
+        recent_scan_count_24h = await count_scan_jobs_for_target_since(
+            session, existing_target.id, since_24h
+        )
     plan = entitlements(account.plan_id)
 
     decision = resolve_authorization(
@@ -138,7 +145,7 @@ async def public_submit_scan(
             target_verification_status=target_verification_status,
             target_opt_out=False,
             ownership_proof_valid=ownership_proof_valid,
-            recent_scan_count_24h=0,
+            recent_scan_count_24h=recent_scan_count_24h,
             denylisted=origin in _DENYLIST,
             active_tier_permitted_by_plan=plan.active_tier_allowed,
         )

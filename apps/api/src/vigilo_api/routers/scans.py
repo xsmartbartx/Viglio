@@ -20,6 +20,7 @@ from vigilo_core.validation import ValidationError, validate_target_url
 from vigilo_identity.repository import get_account_by_email, get_or_create_account
 from vigilo_orchestrator.service import (
     advance,
+    count_scan_jobs_for_target_since,
     count_scan_jobs_for_targets,
     create_scan_job,
     get_scan_by_job_id,
@@ -63,12 +64,15 @@ async def submit_scan(
     # the same no-lookup path as before: nothing is read or created here,
     # preserving "a denied scan may have no account yet"
     # (docs/data-model.md's audit_events.account_id note) for first-timers,
-    # the only case that invariant is actually about. `target_opt_out` and
-    # `recent_scan_count_24h` remain separately-tracked, pre-existing scope
-    # trims (docs/security.md §2) — not touched here.
+    # the only case that invariant is actually about. `target_opt_out`
+    # remains a separately-tracked, pre-existing scope trim
+    # (docs/security.md §2) — not touched here. `recent_scan_count_24h` is
+    # real for a target that already exists, `0` for a genuinely new one
+    # (nothing to count yet, not a loophole).
     target_verification_status = Tier.PASSIVE
     ownership_proof_valid = False
     active_tier_permitted_by_plan = True
+    recent_scan_count_24h = 0
     existing_account = await get_account_by_email(session, body.email)
     if existing_account is not None:
         existing_project = await get_or_create_default_project(session, existing_account.id)
@@ -76,6 +80,10 @@ async def submit_scan(
         if existing_target is not None:
             target_verification_status = existing_target.verification_status
             ownership_proof_valid = await has_valid_ownership_proof(session, existing_target.id)
+            since_24h = datetime.now(UTC) - timedelta(hours=24)
+            recent_scan_count_24h = await count_scan_jobs_for_target_since(
+                session, existing_target.id, since_24h
+            )
         active_tier_permitted_by_plan = entitlements(existing_account.plan_id).active_tier_allowed
 
     decision = resolve_authorization(
@@ -85,7 +93,7 @@ async def submit_scan(
             target_verification_status=target_verification_status,
             target_opt_out=False,
             ownership_proof_valid=ownership_proof_valid,
-            recent_scan_count_24h=0,
+            recent_scan_count_24h=recent_scan_count_24h,
             denylisted=origin in _DENYLIST,
             active_tier_permitted_by_plan=active_tier_permitted_by_plan,
         )
