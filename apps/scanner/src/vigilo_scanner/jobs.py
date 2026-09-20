@@ -12,7 +12,7 @@ app is always a leaf in that graph and is free to depend on both.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from vigilo_billing import entitlements
@@ -34,6 +34,7 @@ from vigilo_monitoring import (
 from vigilo_notification import AlertOccurrence, NotificationEvent, notify
 from vigilo_orchestrator.service import (
     advance,
+    count_scan_jobs_for_target_since,
     create_scan_job,
     get_failed_findings_for_scan,
     get_scan_by_job_id,
@@ -70,6 +71,10 @@ async def _run_due_monitor(ctx: dict[str, Any], monitor: Monitor, now: datetime)
 
         ownership_proof_valid = await has_valid_ownership_proof(session, target.id)
         plan = entitlements(account.plan_id)
+        since_24h = now - timedelta(hours=24)
+        recent_scan_count_24h = await count_scan_jobs_for_target_since(
+            session, target.id, since_24h
+        )
 
         # Always request ACTIVE — resolve_authorization() downgrades to
         # passive on its own if the proof has since lapsed or the plan no
@@ -84,7 +89,7 @@ async def _run_due_monitor(ctx: dict[str, Any], monitor: Monitor, now: datetime)
                 target_verification_status=target.verification_status,
                 target_opt_out=target.opt_out_flag,
                 ownership_proof_valid=ownership_proof_valid,
-                recent_scan_count_24h=0,
+                recent_scan_count_24h=recent_scan_count_24h,
                 denylisted=False,  # no real denylist source yet, matching scans.py's own stub
                 active_tier_permitted_by_plan=plan.active_tier_allowed,
             )

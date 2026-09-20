@@ -55,6 +55,65 @@ async def test_get_scan_status_returns_404_for_an_unknown_job(client):
     assert response.status_code == 404
 
 
+async def _upgrade_to_studio(session, account_id: uuid.UUID, email: str):
+    # Studio's scans_per_month_limit is None (unlimited) — needed so these
+    # tests can seed 21+ scan jobs without tripping the *separate*
+    # SCANS_MONTHLY billing quota before reaching the 24h abuse ceiling
+    # this test is actually about.
+    await upsert_subscription(
+        session,
+        account_id=account_id,
+        plan_id="studio",
+        status="active",
+        provider="paddle",
+        provider_subscription_id=f"sub_{email}",
+        current_period_end=None,
+    )
+
+
+async def test_submit_scan_denies_the_22nd_scan_of_the_same_target_within_24h(client):
+    email = "ratelimit-owner@example.com"
+    async with session_scope() as session:
+        account = await get_or_create_account(session, email=email)
+        await _upgrade_to_studio(session, account.id, email)
+        project = await get_or_create_default_project(session, account.id)
+        target = await create_target(session, project.id, "https://ratelimit-target.test")
+        # Seed 21 scan jobs directly — the ceiling denies when the count
+        # already exceeds 20, so the 22nd real submission (below) must be
+        # denied.
+        for _ in range(21):
+            await create_scan_job(session, target.id, Tier.PASSIVE, email, "0.1")
+
+    response = await client.post(
+        "/v1/scans",
+        json={"target_url": "https://ratelimit-target.test", "email": email},
+    )
+
+    assert response.status_code == 403
+    assert "rate limit" in response.json()["detail"]
+
+
+async def test_submit_scan_allows_a_22nd_scan_of_a_different_target(client):
+    """Confirms the ceiling is genuinely per-target, not per-account —
+    the same account scanning a *different* target isn't affected by the
+    other target's recent volume."""
+    email = "ratelimit-scope-owner@example.com"
+    async with session_scope() as session:
+        account = await get_or_create_account(session, email=email)
+        await _upgrade_to_studio(session, account.id, email)
+        project = await get_or_create_default_project(session, account.id)
+        busy_target = await create_target(session, project.id, "https://busy-target.test")
+        for _ in range(21):
+            await create_scan_job(session, busy_target.id, Tier.PASSIVE, email, "0.1")
+
+    response = await client.post(
+        "/v1/scans",
+        json={"target_url": "https://quiet-target.test", "email": email},
+    )
+
+    assert response.status_code == 202
+
+
 async def test_submit_scan_requesting_active_tier_stays_passive_for_a_new_target(client):
     """A brand-new submitter has no prior verification state — requesting
     active tier is a downgrade, not a rejection, per ADR-0003."""
