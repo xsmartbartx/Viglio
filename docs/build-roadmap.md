@@ -605,6 +605,96 @@ up from 531 at Phase 8) and `uv run ruff check .` both green.
 
 ---
 
+## Post-roadmap work
+
+The 9 numbered phases above are complete; work since then closes gaps a
+live end-to-end pass surfaced, rather than following the roadmap's own
+phase numbering.
+
+### Self-serve dashboard
+
+A live test confirmed the scan engine genuinely works end to end but found
+`apps/web` had no UI for any account-level feature beyond one deep-linked
+monitoring page — no target list, no billing/upgrade page (`POST
+/v1/billing/checkout` existed with nothing in the UI ever calling it), no
+API key or branding management. New `/dashboard` section: overview,
+target list with inline ownership-verification (DNS TXT/well-known
+file/meta tag), a billing/upgrade page (plan comparison table with real
+limits, deliberately no invented prices — no dollar amount exists anywhere
+in this codebase; the real price lives only in Paddle's hosted checkout),
+API key management (plaintext shown once), and Business-tier branding
+settings. Two small backend additions: `GET /v1/targets` (list) and
+`GET /v1/plans` (public plan comparison data). Verified live in the
+browser: sign-in renders correctly, all 5 new routes correctly redirect
+unauthenticated visitors, `npm run build` produces all 5 routes cleanly.
+
+### SARIF export, CWE mapping, and a GitHub Action
+
+An external repo assessment recommended a long feature list; most of it
+was already built (normalized findings schema, OWASP-style checks, audit
+trail, tenant isolation) or conflicted with Vigilo's deliberate live-URL
+scanning architecture (source-code/container/IaC scanning would be a
+different subsystem — already explicitly deferred as the repo-connector
+phase, not an oversight). Two items were genuinely new and
+architecture-compatible: SARIF export and a GitHub Action.
+
+**CWE mapping**: `CheckManifest` gained `cwe_id: str | None`, set on 51 of
+64 checks — the other 13 (compliance/legal-linkage, pure best-practice
+checks) deliberately carry no CWE, each with an inline comment explaining
+why, rather than forcing an artificial mapping onto something that isn't
+a CWE-taxonomy software weakness. `docs/check-catalog.md` regenerated with
+a CWE column.
+
+**`build_sarif_report()`** (`packages/reporting`), a pure sibling of
+`build_report()`. Validated against the real, official SARIF 2.1.0 JSON
+schema (`json.schemastore.org`) — not just spot-checked by eye. GitHub
+Code Scanning's SARIF ingestion assumes source-code findings (a
+repo-relative file, a line/column region); live-URL findings have neither
+— this module uses the scanned origin as the location instead of pointing
+at an unrelated real file, documented as a genuine adaptation, not a
+perfect fit (see the module's own docstring and `docs/github-action.md`).
+
+**Two distribution paths, per an explicit scope decision**: `apps/cli`
+runs the scan pipeline standalone (no server, no account — confirmed by
+reading every line of `apps/cli/src`) while the public API is
+key-authenticated and unusable on the Free plan (`api_keys_limit=0`).
+`.github/actions/scan` (new, this repo's first custom GitHub Action) wraps
+the CLI — true zero-account CI distribution, a new `apps/cli/Dockerfile`
+(same full-workspace-sync + Chromium pattern as `apps/scanner/Dockerfile`,
+since both call `vigilo_probes.run_probes()`). The public API also gained
+`GET /public/v1/scans/{id}/report.sarif` as a smaller add-on for paying
+customers wiring CI into their persisted/monitored scans specifically.
+New CLI flags `--sarif`/`--fail-on` — one live scan produces both the
+SARIF content and the pass/fail decision, never two (a second scan of a
+live target could legitimately disagree with the first).
+
+**A real bug found during manual verification**: the composite action's
+first draft relied on unquoted bash word-splitting (`docker run ... $FAIL_ARGS`)
+to build the docker argument list — worked when tested directly, silently
+mis-parsed when tested through a variable-driven script, because that
+testing happened under zsh (which doesn't word-split unquoted variables by
+default) rather than the `shell: bash` GitHub Actions actually runs. Fixed
+by building a proper bash array instead of relying on word-splitting at
+all — correct under any shell, not just something that happened to work
+under bash specifically. Caught by testing the actual script logic end to
+end against a real Docker image and a real live target, not just the
+individual pieces in isolation.
+
+**Verified live**: the SARIF builder's output validated against the real
+SARIF 2.1.0 JSON schema, both from a direct unit call and from the actual
+`apps/cli/Dockerfile` image scanning a real target; `--fail-on high`/`--fail-on critical`
+against a real scan produced the correct exit codes; the composite
+action's exact bash logic (docker build, scan, `$GITHUB_OUTPUT` capture,
+threshold enforcement) run end to end manually, matching what
+`shell: bash` executes in real GitHub Actions. `uv run pytest -q`
+(613 tests) and `uv run ruff check .` both green. **Known, disclosed
+gap**: an actual upload to a real GitHub repo's Code Scanning and
+confirming the alert renders sensibly needs a real GitHub Actions run in
+a repo with Code Scanning enabled — not exercisable from this
+environment; the one thing to verify on first real-world use.
+
+---
+
 ## Standing rules across every phase
 
 1. No check reaches the registry without a primary-standard reference, a

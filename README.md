@@ -41,7 +41,8 @@ prompt can act on.
 | Monitoring | Scheduled re-scans, regression alerts, score history |
 | Public API | REST + SSE, API-key authenticated, same engine as the web app |
 | MCP server | `vigilo-mcp` — lets Cursor / Claude Code start scans and pull findings in-editor |
-| CLI | `vigilo scan <url>` for CI pipelines and local use |
+| CLI | `vigilo scan <url>` for CI pipelines and local use — `--sarif`/`--fail-on` for CI gating |
+| GitHub Action | `.github/actions/scan` — zero-account CI scan, uploads SARIF to Code Scanning |
 
 ---
 
@@ -50,6 +51,11 @@ prompt can act on.
 ```text
 .github/
   ├─ copilot-instructions.md
+  ├─ workflows/ci.yml
+  ├─ actions/
+  │    └─ scan/action.yml             # this repo's first custom GitHub Action — wraps
+  │                                   #   apps/cli/Dockerfile for zero-account CI
+  │                                   #   scanning + SARIF upload, see docs/github-action.md
   └─ agents/
        ├─ architecture.agent.md
        ├─ documentation.agent.md
@@ -64,7 +70,8 @@ prompt can act on.
 apps/
   ├─ web/                             # Next.js frontend (Phase 4)
   ├─ api/                             # FastAPI control plane
-  ├─ cli/                             # `vigilo scan <url>`
+  ├─ cli/                             # `vigilo scan <url>` — --sarif/--fail-on for CI,
+                                       #   Dockerfile is .github/actions/scan's engine
   ├─ scanner/                         # ARQ worker (isolated network zone — the only
                                        #   control-plane process that imports probes);
                                        #   also owns the monitoring cron/diff job bodies
@@ -100,6 +107,7 @@ docs/
   ├─ api.md
   ├─ security.md
   ├─ self-hosting.md                  # Phase 9
+  ├─ github-action.md                 # .github/actions/scan usage
   ├─ build-roadmap.md
   └─ adr/
        ├─ ADR-0001-core-architecture.md
@@ -260,6 +268,24 @@ see that doc's "Production VPS deployment" section.
 ---
 
 ## Status
+
+**SARIF export, CWE mapping, and a GitHub Action (post-Phase-9).** A full
+CWE audit assigned a taxonomy identifier to 51 of the 64 checks (the
+other 13 are compliance/legal-linkage checks, deliberately left
+unmapped — see `docs/check-catalog.md`'s CWE column and
+`docs/build-roadmap.md` for the full per-check reasoning). A new
+`build_sarif_report()` (`packages/reporting`) renders findings as SARIF
+2.1.0 — validated against the real, official SARIF JSON schema, not just
+eyeballed. `.github/actions/scan` (this repo's first custom GitHub
+Action) wraps the standalone `vigilo` CLI (`apps/cli/Dockerfile`, new) for
+zero-account CI distribution — no signup, drop it into a workflow, get
+results in GitHub's Security tab; `POST /public/v1/scans` also gained a
+`.../report.sarif` endpoint for API-key customers wiring CI into their
+persisted/monitored scans specifically. New CLI flags `--sarif`/
+`--fail-on` produce both the SARIF content and the CI pass/fail decision
+from one live scan. See `docs/github-action.md` for usage and the honest
+caveat about SARIF's file/line model not cleanly fitting live-URL
+findings.
 
 **Self-serve dashboard added (post-Phase-9).** A live end-to-end pass after
 Phase 9 confirmed the scan engine genuinely works but found `apps/web` had

@@ -608,6 +608,27 @@ Same response shape as `GET /v1/scans/{id}/report` above, always with
 above, as its own named resource (the vision doc's literal "list
 findings").
 
+### `GET /public/v1/scans/{scan_job_id}/report.sarif` (`report:read`)
+
+The same findings as `.../report` above, rendered as a SARIF 2.1.0
+document (`Content-Type: application/sarif+json`) for GitHub Code
+Scanning and similar tooling. Only `FAILED`/`INCONCLUSIVE` findings become
+SARIF `results` — `PASSED`/`NOT_APPLICABLE` are never emitted, matching
+SARIF's own "report what needs attention" convention. Every check that has
+an emitted result also gets a `rules[]` entry, tagged with its CWE id when
+`docs/check-catalog.md`'s CWE column has one for it.
+
+**A genuine adaptation, not a perfect fit**: GitHub's SARIF ingestion
+expects `results[].locations[].physicalLocation.artifactLocation.uri` to
+be a repo-relative source file with a line/column — Vigilo's findings are
+about a live deployed URL, which has neither. This endpoint uses the
+scanned origin as the location's `uri` (honest about there being no file)
+with an inert region. See `packages/reporting/src/vigilo_reporting/sarif.py`'s
+module docstring for the full reasoning, and `docs/github-action.md` for
+the primary way most users will actually consume this format (the
+zero-account `.github/actions/scan` GitHub Action, which produces the
+same SARIF shape from the standalone CLI rather than this endpoint).
+
 ### `GET /public/v1/targets/{target_id}/scores` (`report:read`)
 
 Same shape as `GET /v1/targets/{id}/scores` above.

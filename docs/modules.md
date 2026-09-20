@@ -403,6 +403,16 @@ descriptor-completeness field, not a runtime-enforced budget — see
 the full dynamic "drop lowest-weight checks over budget" planner
 (§8.5 of the Prooflight doc) is explicitly deferred, not silently dropped.
 
+**Deviation (SARIF export).** `CheckManifest` gained `cwe_id: str | None
+= None` — a CWE taxonomy identifier feeding SARIF export's rule tagging
+(`packages/reporting`'s `build_sarif_report()`, `docs/check-catalog.md`'s
+CWE column). Set on 51 of 64 checks; deliberately `None` on the other 13
+(compliance/legal-linkage or pure best-practice checks that aren't
+CWE-taxonomy software weaknesses at all — forcing a mapping onto them
+would be the "compliance claims create legal risk" trap, not a
+completeness win). Every assignment is commented inline at its
+`CheckManifest(...)` call site with the reasoning, not silently omitted.
+
 **API**
 
 ```python
@@ -884,6 +894,11 @@ plan" read literally). Public-API resource lookups (`GET
 deliberately unlike the session-authenticated `GET /v1/scans/{id}`, which
 is intentionally public/unguessable-UUID-based — a scoped API key must not
 let one caller enumerate another account's resources by guessing an id.
+
+`GET /public/v1/scans/{id}/report.sarif` (SARIF export) reuses `reporting`'s
+new `build_sarif_report()` and the same `MANIFESTS_BY_CHECK_ID`/findings
+already fetched for `/report` — no new dependency edge, `api` already
+depended on `reporting` for `build_report`.
 
 **Security.** Authentication on every route that isn't explicitly public
 (`POST /v1/scans`, `GET /v1/scans/{id}`, `GET /v1/scans/{id}/report`, the PDF
