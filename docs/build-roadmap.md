@@ -693,6 +693,91 @@ confirming the alert renders sensibly needs a real GitHub Actions run in
 a repo with Code Scanning enabled — not exercisable from this
 environment; the one thing to verify on first real-world use.
 
+### Gap closure: abuse-rate ceiling, finding suppression, disclosure policy, backups
+
+A pre-deployment review found six gaps. Two aren't things any engineering
+pass can close (an actual legal review of the Terms/Privacy/DPA; a
+parallel GitHub Copilot agent working the same repo, outside this
+session's control) — flagged, not silently skipped. The other four were
+real, addressable engineering work, closed here.
+
+**The 24h abuse-rate ceiling.** `resolve_authorization()`'s
+`_RECENT_SCAN_CEILING = 20` (`packages/security`) was implemented and
+tested but every caller passed `recent_scan_count_24h=0` — the ceiling
+never actually fired. New `count_scan_jobs_for_target_since()`
+(`packages/orchestrator`), a singular-target sibling of the existing
+`count_scan_jobs_for_targets`, now feeds a real count at all three call
+sites (`POST /v1/scans`, `POST /public/v1/scans`, the scheduled-monitor
+path in `apps/scanner`). **Scope decision**: per-target, not per-account
+or global — the narrowest, most defensible blast radius for an *abuse*
+ceiling specifically, and the same precedent `detect_regression()`'s
+fingerprint tracking already set. A brand-new target's count is
+genuinely `0` — not a loophole, just nothing to count yet.
+
+**Finding suppression / accepted risk.** The vision doc's
+`docs/prooflight-vision-and-architecture.md` §6.2 names a finding
+lifecycle (`detected → open → resolved/acknowledged/muted → regressed`)
+that was never built. Rather than a full `Verdict`-enum retrofit
+(materially larger, real risk for a gap-closure pass), this builds the
+minimal honest version: a new `Suppression` entity (`packages/project`,
+`docs/data-model.md`'s `suppressions` table), a target owner's "known,
+accept it" decision on one fingerprint, upserted by `(target_id,
+fingerprint)`. **Scope decision**: suppression never changes a scan's
+stored `score`/`grade` — those feed score history, monitoring's
+`previous_score`/`current_score`, and the public badge, and retroactively
+adjusting them would need its own recompute path, well beyond this pass.
+Instead it affects presentation (`build_report()` marks `suppressed:
+true`, keeps the finding; `build_sarif_report()` excludes it from
+`results[]`/`rules[]` entirely — complementing, not fighting, GitHub's
+own alert-dismissal workflow) and monitoring (`detect_regression()` skips
+new-critical/regressed events and score-drop hysteresis for a suppressed
+fingerprint). New session-authenticated endpoints
+(`POST /v1/targets/{id}/findings/suppress`, `GET .../suppressions`,
+`POST .../suppressions/{id}/revoke`, `docs/api.md`) and a new "Accepted
+risks" report-page section (`apps/web/components/report/
+AcceptedRisksSection.tsx`, `SuppressFindingButton.tsx`).
+
+**SECURITY.md** — a repo-root vulnerability disclosure policy (GitHub's
+own recognized convention), scoped explicitly to Vigilo's own security,
+distinct from what a Vigilo scan reports about a *target* site, with a
+safe-harbor clause for good-faith research.
+
+**`scripts/backup.sh`** — a cron-friendly script backing up both stateful
+Docker volumes: a `pg_dump -Fc` (restorable with `pg_restore`, safe
+against a live database) plus a tar of the MinIO evidence volume,
+combined into one timestamped tarball. `docs/self-hosting.md`'s Backups
+section rewritten from "there is no built-in backup job" to real
+instructions with a cron example.
+
+**A real bug found during manual verification, unrelated to any of the
+above**: converting `ReportView.tsx` to a Client Component (to hold the
+new suppression state) pulled `ScoreHeader.tsx`'s pre-existing
+`toLocaleString()` call into the client hydration path, surfacing a
+real, pre-existing server/client locale mismatch (the dev machine's
+Node process and the browser pane disagreed on date formatting) as a
+live hydration error — invisible before only because that subtree had
+never been hydrated. Fixed by pushing the client boundary down to a new,
+smaller `SuppressibleFindings.tsx` leaf component instead, so
+`ReportView` stays a Server Component and `ScoreHeader` goes back to
+being pure server-rendered markup. The broader `toLocaleString()`
+locale-pinning issue itself (present in several other components) is
+flagged as a separate follow-up, not fixed here — out of scope for this
+pass and touches unrelated files.
+
+**Verified live, against a real running dev stack, not just unit tests**:
+a real scan's real finding suppressed via direct repository calls against
+the running Postgres — confirmed excluded from a freshly built SARIF
+report, confirmed still present (marked `suppressed: true`) with the
+target's score/grade unchanged via the live `GET /v1/scans/{id}/report`
+endpoint, confirmed reverted after revoke. The "Accepted risks" section
+and severity-group filtering confirmed rendering correctly in the browser
+pane against that same live suppression. `scripts/backup.sh` run against
+a real (throwaway) `docker-compose.self-host.yml` stack — the resulting
+tarball's `postgres.dump` confirmed to be a well-formed, `pg_restore
+--list`-readable archive and the MinIO tar confirmed to contain real
+volume contents. `uv run pytest -q` and `uv run ruff check .` both green;
+`cd apps/web && npm run lint && npm run build` both clean.
+
 ---
 
 ## Standing rules across every phase

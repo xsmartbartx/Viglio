@@ -168,6 +168,36 @@ already-verified proof) — a lighter guarantee than `audit_events`' DB-level
 trigger below. Flagged here as a known, smaller guarantee, not silently
 assumed equal.
 
+## suppressions (`packages/project`, added post-Phase-9)
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID, PK | |
+| `target_id` | UUID, FK → `targets.id`, indexed | |
+| `fingerprint` | varchar(128) | Same width/identity as `findings.fingerprint` — never a FK to `findings.id`, since every scan creates a fresh set of finding rows and a suppression must survive across scans |
+| `check_id` | varchar(32) | Informational/display only — not part of uniqueness, since `fingerprint` already encodes it |
+| `reason` | text | Free-text justification, required |
+| `expires_at` | timestamptz, nullable | `null` = permanent. An expired suppression reverts to showing the finding again — it isn't deleted, just excluded by `get_suppressed_fingerprints_for_target()`'s `WHERE` clause |
+| `created_by_account_id` | UUID, FK → `accounts.id` | Who accepted the risk |
+| `created_at` | timestamptz | |
+
+`UniqueConstraint(target_id, fingerprint)` — `create_suppression()` upserts
+on this pair (re-suppressing an already-suppressed finding updates its
+reason/expiry in place), matching `upsert_branding_profile()`'s exact
+found-or-update precedent.
+
+Closes the vision doc's `docs/prooflight-vision-and-architecture.md` §6.2
+finding-lifecycle states (`acknowledged`/`muted`) as a target-scoped
+suppression list rather than a full `Verdict`-enum retrofit. Applied at
+three points, deliberately never at scoring — see `docs/security.md` §3
+and `docs/modules.md` §2b/§9: report rendering (marked `suppressed: true`,
+not removed), SARIF export (excluded from `results[]`/`rules[]`
+entirely), and monitoring alerts (`detect_regression()` skips
+`new_critical`/`new_high`/`regressed`/`cert_expiry` events and score-drop
+hysteresis for a suppressed fingerprint). A scan's `score`/`grade` are
+never recomputed from this table — they stay the one true, unfiltered
+number.
+
 ## scan_jobs (`packages/orchestrator`)
 
 | Column | Type | Notes |

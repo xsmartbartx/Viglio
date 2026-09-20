@@ -292,7 +292,9 @@ authenticated Clerk user) merge into one account.
 
 ## 2b. project
 
-**Responsibility.** Projects, targets, ownership proofs.
+**Responsibility.** Projects, targets, ownership proofs, suppressions
+(target owners' "known, accept it" decisions on individual findings —
+added post-Phase-9, `docs/data-model.md`'s `suppressions` table).
 
 **Boundaries.** Cannot perform network I/O to a target — issuing and
 recording ownership proofs is pure persistence; the actual DNS/HTTP checks
@@ -310,6 +312,12 @@ issue_ownership_proof(session, target_id, method) -> OwnershipProof
 get_ownership_proof(session, proof_id) -> OwnershipProof | None
 has_valid_ownership_proof(session, target_id) -> bool
 mark_proof_verified(session, proof_id) -> OwnershipProof
+create_suppression(session, target_id, fingerprint, check_id, reason,
+                    created_by_account_id, expires_at=None) -> Suppression
+list_suppressions_for_target(session, target_id) -> list[Suppression]
+get_suppression(session, suppression_id) -> Suppression | None
+revoke_suppression(session, suppression_id) -> Suppression | None
+get_suppressed_fingerprints_for_target(session, target_id, now) -> frozenset[str]
 ```
 
 **Dependencies.** core, persistence, identity (for the `accounts.id` FK
@@ -683,7 +691,8 @@ due_monitors(session, now) -> list[Monitor]
 detect_regression(previous_failed: dict[str, Finding], current_failed: dict[str, Finding],
                    ever_failed_before_previous: frozenset[str], previous_registry_version: str,
                    current_registry_version: str, previous_score: float, current_score: float,
-                   had_pending_score_drop: bool) -> RegressionReport
+                   had_pending_score_drop: bool,
+                   suppressed_fingerprints: frozenset[str] = frozenset()) -> RegressionReport
 compute_next_run_at(cadence_hours, quiet_start_utc, quiet_end_utc, now, jitter_minutes=15) -> datetime
 ```
 
@@ -712,6 +721,16 @@ scheduled job itself failed, not diff-derived — enqueued from
 `run_scan_job`'s three failure branches, `packages/orchestrator/jobs.py`).
 A `resolved` transition is computed internally but never becomes an
 `Alert` — no alert type exists for it in the domain model.
+
+**Suppression (post-Phase-9).** `suppressed_fingerprints` — fed by
+`packages/project`'s `get_suppressed_fingerprints_for_target()` — is
+checked immediately after the existing `previous_failed` skip in the
+transition loop, so a suppressed fingerprint produces no
+`new_critical`/`new_high`/`regressed`/`cert_expiry` event and doesn't
+count toward `score_drop`'s hysteresis either. Still a pure function:
+the caller (`detect_regression_job`, `apps/scanner/src/vigilo_scanner/jobs.py`)
+fetches the set and passes it in, same shape as every other precomputed
+input here.
 
 **Where the job bodies live.** `check_due_monitors_job` (an ARQ cron job,
 every 15 minutes), `detect_regression_job` and `record_scan_failed_alert_job`

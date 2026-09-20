@@ -154,9 +154,26 @@ responses, not something it actively redirects or routes.
 
 `vigilo_self_host_postgres_data` and `vigilo_self_host_minio_data`
 (Docker named volumes) hold everything stateful — scan history, findings,
-accounts, and stored evidence. Back these up the way you back up any
-Docker volume (e.g. `docker run --rm -v vigilo-self-host_vigilo_self_host_postgres_data:/data ...`
-into a tarball on a schedule); there is no built-in backup job.
+accounts, and stored evidence. `scripts/backup.sh` backs up both: a
+logical Postgres dump (`pg_dump -Fc`, safe to run against a live
+database, restorable with `pg_restore`) plus a tar of the MinIO evidence
+volume, combined into one timestamped tarball:
+
+```bash
+./scripts/backup.sh /path/to/backup-dir   # defaults to ./backups
+```
+
+It's cron-friendly — no prompts, exits non-zero on any failure. Run it on
+a schedule and prune old archives yourself, e.g.:
+
+```
+0 3 * * * cd /opt/vigilo && ./scripts/backup.sh /opt/vigilo-backups && \
+  find /opt/vigilo-backups -name 'vigilo-backup-*.tar.gz' -mtime +14 -delete
+```
+
+To restore, extract the tarball and run `pg_restore` against the
+`postgres.dump` member, and untar `minio-evidence.tar.gz` back into the
+`vigilo_self_host_minio_data` volume.
 
 ## CI coverage
 

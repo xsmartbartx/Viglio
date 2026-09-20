@@ -117,6 +117,8 @@ docker-compose.yml                    # local dev infra only (postgres/redis/min
 docker-compose.self-host.yml          # Phase 9 — the full self-hosted stack, see docs/self-hosting.md
 Caddyfile                             # reverse proxy + automatic HTTPS for a production VPS deployment
 scripts/deploy.sh                     # idempotent redeploy: git pull, rebuild, migrate
+scripts/backup.sh                     # Postgres + MinIO evidence backup to a timestamped tarball
+SECURITY.md                           # vulnerability disclosure policy
 brand.config.json                     # single source of truth for naming
 ```
 
@@ -268,6 +270,29 @@ see that doc's "Production VPS deployment" section.
 ---
 
 ## Status
+
+**Gap closure: abuse-rate ceiling, finding suppression, disclosure policy,
+backups (post-Phase-9).** A pre-deployment review found four addressable
+gaps and closed all of them. (1) `resolve_authorization()`'s 24-hour
+abuse-rate ceiling (`docs/security.md` §3) was implemented and tested but
+never fed a real count — every caller passed `recent_scan_count_24h=0`. A
+new `count_scan_jobs_for_target_since()` (`packages/orchestrator`) now
+feeds it a real per-target count at all three call sites. (2) A
+target-scoped suppression/"accepted risk" workflow closes the vision
+doc's never-built `acknowledged`/`muted` finding states
+(`docs/prooflight-vision-and-architecture.md` §6.2) — a new `Suppression`
+entity (`packages/project`) applied at report rendering (marked, not
+removed), SARIF export (excluded entirely, complementing GitHub's own
+alert-dismissal workflow), and monitoring alerts (no new-critical/
+regressed noise for something already accepted), deliberately **never**
+at scoring — a suppressed finding still counts toward the score, so the
+number stays the one true, unfiltered signal. Managed via
+`/v1/targets/{id}/findings/suppress` and a new "Accepted risks" section
+on the report page. (3) `SECURITY.md` adds a vulnerability disclosure
+policy with a safe-harbor clause for good-faith research. (4)
+`scripts/backup.sh` backs up both stateful volumes (a `pg_dump -Fc` plus
+a MinIO evidence tar) to one timestamped, cron-friendly tarball
+(`docs/self-hosting.md`'s Backups section).
 
 **SARIF export, CWE mapping, and a GitHub Action (post-Phase-9).** A full
 CWE audit assigned a taxonomy identifier to 51 of the 64 checks (the

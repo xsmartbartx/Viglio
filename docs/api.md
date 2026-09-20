@@ -458,6 +458,50 @@ Auth required, caller must own the target. Most-recent-first, capped at 20.
 are `null` for `score_drop`/`scan_failed`. `sent_at` is `null` until the
 alert email actually delivers.
 
+## `POST /v1/targets/{target_id}/findings/suppress` — accept a finding as a known risk (post-Phase-9)
+
+Auth required, ownership checked via `_owned_target_or_404` (`404`, not
+`403`, on mismatch — same precedent as `api_keys.py`'s revoke). Upserts by
+`(target_id, fingerprint)`: suppressing an already-suppressed fingerprint
+updates its `reason`/`expires_at` in place rather than erroring. Writes an
+`audit_events` row (`action="finding_suppressed"`).
+
+**Request**: `{ "fingerprint": "5bdb851b324e7e7f", "check_id": "VG-HDR-001", "reason": "compensating control in place", "expires_at": null }`
+
+**Response `201`**
+
+```json
+{
+  "suppression_id": "...", "target_id": "...", "fingerprint": "5bdb851b324e7e7f",
+  "check_id": "VG-HDR-001", "reason": "compensating control in place",
+  "expires_at": null, "created_by_account_id": "...", "created_at": "..."
+}
+```
+
+Never changes the target's score/grade (`docs/security.md` §3) — see
+`docs/data-model.md`'s `suppressions` table for the full effect on report
+rendering, SARIF export, and monitoring alerts.
+
+**Errors**: `404` unknown or unowned target.
+
+## `GET /v1/targets/{target_id}/suppressions` — list a target's suppressions
+
+Auth required, same ownership check as above.
+
+**Response `200`**: `[{ "suppression_id": "...", "target_id": "...", "fingerprint": "...", "check_id": "...", "reason": "...", "expires_at": null, "created_by_account_id": "...", "created_at": "..." }]`
+
+## `POST /v1/targets/{target_id}/suppressions/{suppression_id}/revoke` — restore a finding
+
+Auth required. `404`, not `403`, if the suppression doesn't belong to
+`target_id`. Deletes the row (an expired-and-revoked suppression has no
+further use, unlike `share_links`' soft-revoke). Writes an `audit_events`
+row (`action="finding_unsuppressed"`).
+
+**Response `200`**: the deleted suppression's last state, same shape as
+the list entry above.
+
+**Errors**: `404` unknown target, unowned target, or unknown suppression.
+
 ## `GET /badge/{target_id}.svg` — embeddable score badge (Phase 8)
 
 **No auth** — deliberately public, and outside the `/v1` prefix (see
