@@ -49,6 +49,7 @@ def _to_report_finding(
     manifest: CheckManifest,
     generated_at: datetime,
     remediations_by_check_id: dict[str, RemediationPrompt],
+    suppressed_fingerprints: frozenset[str],
 ) -> ReportFinding:
     prompt = remediations_by_check_id.get(finding.check_id) or template_remediation(
         finding, manifest
@@ -76,6 +77,7 @@ def _to_report_finding(
         references=manifest.references,
         evidence=evidence,
         fingerprint=finding.fingerprint,
+        suppressed=finding.fingerprint in suppressed_fingerprints,
     )
 
 
@@ -86,12 +88,20 @@ def build_report(
     manifests_by_check_id: dict[str, CheckManifest],
     generated_at: datetime,
     remediations_by_check_id: dict[str, RemediationPrompt] | None = None,
+    suppressed_fingerprints: frozenset[str] | None = None,
 ) -> ReportDocument:
+    """`score` is never recomputed from `suppressed_fingerprints` — a
+    suppression is presentation-only (marks a finding, never changes
+    score/grade), so score history, monitoring's regression detection, and
+    the public badge all keep reading the one true, unfiltered number
+    (docs/build-roadmap.md's post-Phase-9 suppression entry has the full
+    reasoning for why this is deliberate, not an oversight)."""
     remediations = remediations_by_check_id or {}
+    suppressed = suppressed_fingerprints or frozenset()
     ordered = sorted(findings, key=_sort_key)
     report_findings = [
         _to_report_finding(
-            finding, manifests_by_check_id[finding.check_id], generated_at, remediations
+            finding, manifests_by_check_id[finding.check_id], generated_at, remediations, suppressed
         )
         for finding in ordered
     ]

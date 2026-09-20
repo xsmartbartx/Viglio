@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from vigilo_core.models import Target, Tier, VerificationMethod
 from vigilo_project.errors import OwnershipProofNotFound
-from vigilo_project.models import OwnershipProof, Project
-from vigilo_project.orm import OwnershipProofRow, ProjectRow, TargetRow
+from vigilo_project.models import OwnershipProof, Project, Suppression
+from vigilo_project.orm import OwnershipProofRow, ProjectRow, SuppressionRow, TargetRow
 
 _PROOF_LIFETIME = timedelta(days=90)  # ADR-0003: proofs expire after 90 days
 
@@ -178,3 +178,83 @@ async def mark_proof_verified(session: AsyncSession, proof_id: uuid.UUID) -> Own
 
     await session.flush()
     return OwnershipProof.model_validate(proof_row)
+
+
+async def create_suppression(
+    session: AsyncSession,
+    target_id: uuid.UUID,
+    fingerprint: str,
+    check_id: str,
+    reason: str,
+    created_by_account_id: uuid.UUID,
+    expires_at: datetime | None = None,
+) -> Suppression:
+    """Upsert by `(target_id, fingerprint)` — re-suppressing an
+    already-suppressed finding updates its reason/expiry in place rather
+    than erroring, matching `upsert_branding_profile()`'s exact
+    found-or-update precedent."""
+    result = await session.execute(
+        select(SuppressionRow).where(
+            SuppressionRow.target_id == target_id, SuppressionRow.fingerprint == fingerprint
+        )
+    )
+    row = result.scalar_one_or_none()
+
+    if row is None:
+        row = SuppressionRow(target_id=target_id, fingerprint=fingerprint)
+        session.add(row)
+
+    row.check_id = check_id
+    row.reason = reason
+    row.expires_at = expires_at
+    row.created_by_account_id = created_by_account_id
+
+    await session.flush()
+    return Suppression.model_validate(row)
+
+
+async def list_suppressions_for_target(
+    session: AsyncSession, target_id: uuid.UUID
+) -> list[Suppression]:
+    result = await session.execute(
+        select(SuppressionRow)
+        .where(SuppressionRow.target_id == target_id)
+        .order_by(SuppressionRow.created_at.desc())
+    )
+    return [Suppression.model_validate(row) for row in result.scalars().all()]
+
+
+async def get_suppression(session: AsyncSession, suppression_id: uuid.UUID) -> Suppression | None:
+    row = await session.get(SuppressionRow, suppression_id)
+    return Suppression.model_validate(row) if row else None
+
+
+async def revoke_suppression(
+    session: AsyncSession, suppression_id: uuid.UUID
+) -> Suppression | None:
+    row = await session.get(SuppressionRow, suppression_id)
+    if row is None:
+        return None
+    suppression = Suppression.model_validate(row)
+    await session.delete(row)
+    await session.flush()
+    return suppression
+
+
+async def get_suppressed_fingerprints_for_target(
+    session: AsyncSession, target_id: uuid.UUID, now: datetime
+) -> frozenset[str]:
+    """Direct structural sibling of `vigilo_orchestrator.service
+    .list_ever_failed_fingerprints_before()` — same per-target,
+    fingerprint-set shape, feeding report rendering, SARIF export, and
+    monitoring's `detect_regression()` (docs/build-roadmap.md's
+    post-Phase-9 entry). Excludes expired suppressions — an expired mute
+    reverts to showing the finding again, per the vision doc's own
+    "muted... with reason + expiry" framing."""
+    result = await session.execute(
+        select(SuppressionRow.fingerprint).where(
+            SuppressionRow.target_id == target_id,
+            (SuppressionRow.expires_at.is_(None)) | (SuppressionRow.expires_at > now),
+        )
+    )
+    return frozenset(result.scalars().all())

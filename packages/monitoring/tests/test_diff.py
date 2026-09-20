@@ -161,3 +161,43 @@ def test_a_small_score_change_below_threshold_produces_no_drop_state():
 
     assert report.score_drop is False
     assert report.pending_score_drop is False
+
+
+def test_a_suppressed_fingerprint_produces_no_event_even_when_newly_critical():
+    finding = _finding("fp1", severity=Severity.CRITICAL)
+    report = _detect(
+        current_failed={"fp1": finding},
+        suppressed_fingerprints=frozenset({"fp1"}),
+    )
+
+    assert report.events == []
+
+
+def test_a_suppressed_critical_does_not_count_toward_score_drop_hysteresis():
+    # Without suppression, a new_critical event alongside a >=10-point drop
+    # would immediately surface score_drop=True even on the first drop
+    # (see the "unless a critical is involved" test elsewhere in this
+    # file). Suppressing the only critical finding removes that exception.
+    finding = _finding("fp1", severity=Severity.CRITICAL)
+    report = _detect(
+        current_failed={"fp1": finding},
+        suppressed_fingerprints=frozenset({"fp1"}),
+        previous_score=90.0,
+        current_score=75.0,
+        had_pending_score_drop=False,
+    )
+
+    assert report.events == []
+    assert report.score_drop is False
+    assert report.pending_score_drop is True
+
+
+def test_an_unsuppressed_fingerprint_is_unaffected_by_an_unrelated_suppression():
+    finding = _finding("fp1", severity=Severity.HIGH)
+    report = _detect(
+        current_failed={"fp1": finding},
+        suppressed_fingerprints=frozenset({"some-other-fingerprint"}),
+    )
+
+    assert len(report.events) == 1
+    assert report.events[0].fingerprint == "fp1"

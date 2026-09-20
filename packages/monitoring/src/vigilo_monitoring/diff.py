@@ -58,7 +58,16 @@ def detect_regression(
     previous_score: float,
     current_score: float,
     had_pending_score_drop: bool,
+    suppressed_fingerprints: frozenset[str] = frozenset(),
 ) -> RegressionReport:
+    """`suppressed_fingerprints` (post-Phase-9's suppression workflow,
+    `packages/project`) skips a fingerprint's transition entirely — no
+    `new_critical`/`new_high`/`regressed`/`cert_expiry` event, and it
+    doesn't count toward `has_critical_event` for score-drop hysteresis
+    either, since accepting a risk means exactly "stop treating this as
+    urgent" (docs/build-roadmap.md's post-Phase-9 entry). The caller
+    (`apps/scanner`'s `detect_regression_job`) fetches the set the same
+    way it already fetches `ever_failed_before_previous`."""
     if _major(previous_registry_version) != _major(current_registry_version):
         return RegressionReport(
             events=[], score_drop=False, pending_score_drop=False, baseline_reset=True
@@ -68,6 +77,8 @@ def detect_regression(
     for fingerprint, finding in current_failed.items():
         if fingerprint in previous_failed:
             continue  # still open, no transition
+        if fingerprint in suppressed_fingerprints:
+            continue  # accepted risk — no alert noise for something already accepted
 
         if finding.check_id == _CERT_EXPIRY_CHECK_ID:
             event_type = "cert_expiry"

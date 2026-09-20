@@ -197,3 +197,42 @@ def test_two_renders_with_different_remediation_snapshots_differ_only_in_remedia
     before_dump = before.findings[0].model_dump(exclude={"remediation"})
     after_dump = after.findings[0].model_dump(exclude={"remediation"})
     assert before_dump == after_dump
+
+
+def test_a_suppressed_finding_is_marked_but_still_present():
+    findings = [
+        _finding("VG-HDR-001", Verdict.FAILED),
+        _finding("VG-HDR-002", Verdict.FAILED),
+    ]
+    manifests = {"VG-HDR-001": _manifest("VG-HDR-001"), "VG-HDR-002": _manifest("VG-HDR-002")}
+
+    report = build_report(
+        "https://example.com",
+        _score(),
+        findings,
+        manifests,
+        _GENERATED_AT,
+        suppressed_fingerprints=frozenset({"fp-VG-HDR-001"}),
+    )
+
+    by_check_id = {f.check_id: f for f in report.findings}
+    assert by_check_id["VG-HDR-001"].suppressed is True
+    assert by_check_id["VG-HDR-002"].suppressed is False
+
+
+def test_suppression_never_changes_the_reports_score():
+    findings = [_finding("VG-HDR-001", Verdict.FAILED)]
+    manifests = {"VG-HDR-001": _manifest("VG-HDR-001")}
+    score = _score()
+
+    unsuppressed = build_report("https://example.com", score, findings, manifests, _GENERATED_AT)
+    suppressed = build_report(
+        "https://example.com",
+        score,
+        findings,
+        manifests,
+        _GENERATED_AT,
+        suppressed_fingerprints=frozenset({"fp-VG-HDR-001"}),
+    )
+
+    assert unsuppressed.score == suppressed.score

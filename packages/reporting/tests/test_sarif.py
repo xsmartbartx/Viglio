@@ -135,6 +135,29 @@ def test_result_fingerprint_matches_the_findings_own_fingerprint():
     assert result["partialFingerprints"]["primaryLocationLineHash"] == "fp-VG-HDR-001"
 
 
+def test_suppressed_findings_are_excluded_entirely():
+    findings = [
+        _finding("VG-HDR-001", Verdict.FAILED),
+        _finding("VG-HDR-002", Verdict.FAILED),
+    ]
+    manifests = {
+        "VG-HDR-001": _manifest("VG-HDR-001"),
+        "VG-HDR-002": _manifest("VG-HDR-002"),
+    }
+
+    report = build_sarif_report(
+        "https://example.com",
+        findings,
+        manifests,
+        suppressed_fingerprints=frozenset({"fp-VG-HDR-001"}),
+    )
+
+    result_rule_ids = {r["ruleId"] for r in report["runs"][0]["results"]}
+    assert result_rule_ids == {"VG-HDR-002"}
+    rule_ids = {r["id"] for r in report["runs"][0]["tool"]["driver"]["rules"]}
+    assert rule_ids == {"VG-HDR-002"}
+
+
 def test_only_rules_for_reportable_findings_are_included():
     # Only FAILED/INCONCLUSIVE findings get a rule entry — a manifest
     # dict may contain far more checks than actually fired this scan.
