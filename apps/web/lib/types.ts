@@ -53,6 +53,7 @@ export interface ReportFindingResponse {
   references: string[];
   evidence: EvidenceResponse | null;
   fingerprint: string;
+  suppressed: boolean;
 }
 
 export interface BrandingProfileResponse {
@@ -209,6 +210,17 @@ export interface AlertResponse {
   severity: Severity | null;
   fingerprint: string | null;
   sent_at: string | null;
+  created_at: string;
+}
+
+export interface SuppressionResponse {
+  suppression_id: string;
+  target_id: string;
+  fingerprint: string;
+  check_id: string;
+  reason: string;
+  expires_at: string | null;
+  created_by_account_id: string;
   created_at: string;
 }
 

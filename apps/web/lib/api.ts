@@ -19,6 +19,7 @@ import type {
   ScoreHistoryEntry,
   ShareLinkCreateResponse,
   ShareLinkResponse,
+  SuppressionResponse,
   TargetResponse,
   VerificationCheckResponse,
   VerificationInitiateResponse,
@@ -175,6 +176,26 @@ export const api = {
 
   revokeApiKey: (apiKeyId: string, token: string) =>
     request<ApiKeyResponse>(`/v1/me/api-keys/${apiKeyId}/revoke`, { method: "POST", token }),
+
+  suppressFinding: (
+    targetId: string,
+    body: { fingerprint: string; check_id: string; reason: string; expires_at?: string | null },
+    token: string,
+  ) =>
+    request<SuppressionResponse>(`/v1/targets/${targetId}/findings/suppress`, {
+      method: "POST",
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  listSuppressions: (targetId: string, token: string) =>
+    request<SuppressionResponse[]>(`/v1/targets/${targetId}/suppressions`, { token }),
+
+  revokeSuppression: (targetId: string, suppressionId: string, token: string) =>
+    request<SuppressionResponse>(`/v1/targets/${targetId}/suppressions/${suppressionId}/revoke`, {
+      method: "POST",
+      token,
+    }),
 
   getBrandingProfile: (token: string) =>
     request<BrandingProfileResponse>("/v1/me/branding-profile", { token }),

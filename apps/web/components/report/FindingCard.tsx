@@ -1,6 +1,7 @@
 import type { ReportFindingResponse } from "../../lib/types";
 import { AgentPromptBlock } from "./AgentPromptBlock";
 import { EvidencePanel } from "./EvidencePanel";
+import { SuppressFindingButton } from "./SuppressFindingButton";
 
 const SEVERITY_BADGE: Record<string, string> = {
   critical: "bg-severity-critical",
@@ -20,9 +21,13 @@ const EFFORT_LABEL: Record<string, string> = {
 export function FindingCard({
   finding,
   printMode = false,
+  targetId,
+  onSuppressed,
 }: {
   finding: ReportFindingResponse;
   printMode?: boolean;
+  targetId?: string | null;
+  onSuppressed?: (fingerprint: string) => void;
 }) {
   return (
     <div className="rounded-lg border border-black/10 dark:border-white/10 p-4">
@@ -85,6 +90,17 @@ export function FindingCard({
       ) : null}
 
       <EvidencePanel evidence={finding.evidence} defaultOpen={printMode} />
+
+      {targetId && onSuppressed && !printMode ? (
+        <div className="mt-3 border-t border-black/5 dark:border-white/10 pt-3">
+          <SuppressFindingButton
+            targetId={targetId}
+            fingerprint={finding.fingerprint}
+            checkId={finding.check_id}
+            onSuppressed={() => onSuppressed(finding.fingerprint)}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

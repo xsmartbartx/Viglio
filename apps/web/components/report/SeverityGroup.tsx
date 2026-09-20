@@ -14,16 +14,23 @@ const SEVERITY_LABEL: Record<string, string> = {
 export function SeverityGroup({
   findings,
   printMode = false,
+  targetId,
+  onSuppressed,
 }: {
   findings: ReportFindingResponse[];
   printMode?: boolean;
+  targetId?: string | null;
+  onSuppressed?: (fingerprint: string) => void;
 }) {
-  const failed = findings.filter((finding) => finding.verdict === "failed");
+  const allFailed = findings.filter((finding) => finding.verdict === "failed");
+  const failed = allFailed.filter((finding) => !finding.suppressed);
 
   if (failed.length === 0) {
     return (
       <div className="rounded-lg border border-severity-pass/30 bg-severity-pass/5 p-4 text-sm">
-        No failed checks — nice work.
+        {allFailed.length === 0
+          ? "No failed checks — nice work."
+          : "No open failed checks — the rest are accepted risks below."}
       </div>
     );
   }
@@ -41,7 +48,13 @@ export function SeverityGroup({
             </h2>
             <div className="mt-2 space-y-3">
               {group.map((finding) => (
-                <FindingCard key={finding.fingerprint} finding={finding} printMode={printMode} />
+                <FindingCard
+                  key={finding.fingerprint}
+                  finding={finding}
+                  printMode={printMode}
+                  targetId={targetId}
+                  onSuppressed={onSuppressed}
+                />
               ))}
             </div>
           </section>
