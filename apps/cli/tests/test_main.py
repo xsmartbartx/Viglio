@@ -87,3 +87,45 @@ def test_run_saves_evidence_when_requested(_fake_scan, tmp_path, capsys):
     assert exc_info.value.code == 0
     saved = list(tmp_path.rglob("*.json"))
     assert len(saved) == 1
+
+
+def test_run_prints_sarif_for_a_scan(_fake_scan, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        run(["scan", "https://safe.test", "--sarif"])
+
+    assert exc_info.value.code == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["version"] == "2.1.0"
+    assert report["runs"][0]["tool"]["driver"]["name"] == "Vigilo"
+
+
+def test_json_and_sarif_are_mutually_exclusive():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["scan", "https://example.com", "--json", "--sarif"])
+
+
+def test_fail_on_exits_nonzero_when_the_threshold_is_breached(_fake_scan, capsys):
+    # The fixture bundle (HSTS set, nothing else) fails plenty of
+    # medium/low checks (e.g. missing CSP is high) — --fail-on high must
+    # catch it.
+    with pytest.raises(SystemExit) as exc_info:
+        run(["scan", "https://safe.test", "--fail-on", "high"])
+
+    assert exc_info.value.code == 1
+
+
+def test_fail_on_exits_zero_when_the_threshold_is_not_breached(_fake_scan, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        run(["scan", "https://safe.test", "--fail-on", "critical"])
+
+    # The fixture bundle has no critical finding (no leaked credentials,
+    # no broken TLS) — only critical should trip the gate, and it doesn't.
+    assert exc_info.value.code == 0
+
+
+def test_fail_on_is_absent_by_default_regardless_of_findings(_fake_scan, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        run(["scan", "https://safe.test"])
+
+    assert exc_info.value.code == 0

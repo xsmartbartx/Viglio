@@ -116,8 +116,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     scan_parser = subparsers.add_parser("scan", help="Scan a target URL")
     scan_parser.add_argument("url", help="Target URL, e.g. https://example.com")
-    scan_parser.add_argument(
+    output_format = scan_parser.add_mutually_exclusive_group()
+    output_format.add_argument(
         "--json", action="store_true", help="Print machine-readable JSON instead of a summary"
+    )
+    output_format.add_argument(
+        "--sarif",
+        action="store_true",
+        help="Print a SARIF 2.1.0 report instead of a summary, for GitHub Code Scanning",
+    )
+    scan_parser.add_argument(
+        "--fail-on",
+        choices=list(_SEVERITY_ORDER),
+        default=None,
+        help="Exit 1 if any failed finding is at or above this severity (for CI gating)",
     )
     scan_parser.add_argument(
         "--save-evidence", metavar="DIR", help="Save the sealed evidence bundle under DIR"
