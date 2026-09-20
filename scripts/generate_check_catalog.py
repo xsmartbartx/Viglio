@@ -38,16 +38,18 @@ def _table_for_category(category: str, checks) -> str:
     lines = [
         f"## {category} — {_CATEGORY_NAMES.get(category, category)}",
         "",
-        "| ID | Title | Severity | Confidence | Tier | Weight | Reference |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| ID | Title | Severity | Confidence | Tier | Weight | CWE | Reference |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for check in sorted(checks, key=lambda c: c.manifest.check_id):
         m = check.manifest
         ref = m.references[0] if m.references else ""
         ref_cell = f"[link]({ref})" if ref else ""
+        cwe_cell = m.cwe_id if m.cwe_id else "—"
         lines.append(
             f"| `{m.check_id}` | {m.title} | {m.severity_default.value} "
-            f"| {m.confidence.value} | {m.tier_required.value} | {m.weight:g} | {ref_cell} |"
+            f"| {m.confidence.value} | {m.tier_required.value} | {m.weight:g} "
+            f"| {cwe_cell} | {ref_cell} |"
         )
     lines.append("")
     return "\n".join(lines)
