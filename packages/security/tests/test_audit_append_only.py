@@ -41,6 +41,7 @@ async def migrated_schema():
         await conn.execute(text("DROP FUNCTION IF EXISTS audit_events_no_update_delete() CASCADE"))
         await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
         tables = [
+            "suppressions",
             "api_keys",
             "branding_profiles",
             "alerts",
@@ -94,6 +95,7 @@ async def test_migrations_produce_all_expected_tables(migrated_schema):
         "alerts",
         "api_keys",
         "branding_profiles",
+        "suppressions",
         "alembic_version",
     }
 
