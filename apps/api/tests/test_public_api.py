@@ -167,6 +167,33 @@ async def test_public_get_scan_report_and_findings(client):
     assert findings_response.status_code == 200
     assert len(findings_response.json()) == 1
 
+    sarif_response = await client.get(
+        f"/public/v1/scans/{job.id}/report.sarif", headers=_auth(raw_key)
+    )
+    assert sarif_response.status_code == 200
+    assert sarif_response.headers["content-type"] == "application/sarif+json"
+    sarif = sarif_response.json()
+    assert sarif["version"] == "2.1.0"
+    assert sarif["runs"][0]["results"][0]["ruleId"] == "VG-HDR-001"
+
+
+async def test_public_get_scan_report_sarif_requires_ownership(client):
+    account, _raw_key = await _create_account_and_key(
+        "public-sarif-owner@example.com", "builder", ["report:read"]
+    )
+    _other_account, other_raw_key = await _create_account_and_key(
+        "public-sarif-other@example.com", "builder", ["report:read"]
+    )
+    async with session_scope() as session:
+        project = await get_or_create_default_project(session, account.id)
+        target = await create_target(session, project.id, "https://example.com")
+        job = await create_scan_job(session, target.id, Tier.PASSIVE, account.email, "0.1")
+
+    response = await client.get(
+        f"/public/v1/scans/{job.id}/report.sarif", headers=_auth(other_raw_key)
+    )
+    assert response.status_code == 404
+
 
 async def test_public_score_history_and_projects(client):
     account, raw_key = await _create_account_and_key(

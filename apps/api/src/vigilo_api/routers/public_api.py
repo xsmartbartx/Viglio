@@ -24,11 +24,15 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from vigilo_api.api_key_auth import require_scope
 from vigilo_api.deps import QueueDep, SessionDep
-from vigilo_api.report_rendering import get_branding_for_target, render_scan_report
+from vigilo_api.report_rendering import (
+    MANIFESTS_BY_CHECK_ID,
+    get_branding_for_target,
+    render_scan_report,
+)
 from vigilo_api.routers.scans import _DENYLIST, REGISTRY_VERSION
 from vigilo_api.schemas import (
     MonitorCreate,
@@ -71,6 +75,7 @@ from vigilo_project.repository import (
     has_valid_ownership_proof,
     list_target_ids_for_project,
 )
+from vigilo_reporting import build_sarif_report
 from vigilo_security.audit import AuditEvent, audit
 from vigilo_security.authorization import AuthorizationRequest, resolve_authorization
 
@@ -300,6 +305,23 @@ async def public_get_scan_findings(
 ) -> list[ReportFindingResponse]:
     report = await public_get_scan_report(scan_job_id, session, account)
     return report.findings
+
+
+@router.get("/scans/{scan_job_id}/report.sarif")
+async def public_get_scan_report_sarif(
+    scan_job_id: uuid.UUID, session: SessionDep, account: ReportReadDep
+) -> JSONResponse:
+    job = await _owned_scan_job(session, account, scan_job_id)
+    scan = await get_scan_by_job_id(session, scan_job_id)
+    if scan is None:
+        raise HTTPException(status_code=409, detail="report not ready")
+
+    target = await get_target(session, job.target_id)
+    findings = await get_findings_for_scan(session, scan.id)
+    sarif = build_sarif_report(
+        target.origin if target else "", findings, MANIFESTS_BY_CHECK_ID
+    )
+    return JSONResponse(content=sarif, media_type="application/sarif+json")
 
 
 @router.get("/targets/{target_id}/scores", response_model=list[ScoreHistoryEntry])

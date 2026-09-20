@@ -44,12 +44,14 @@ runs:
       shell: bash
       run: |
         set +e
-        FAIL_ARGS=""
+        # A bash array, not a word-split string — avoids surprises if
+        # target-url or fail-on ever contain a space, and doesn't depend
+        # on IFS word-splitting behavior.
+        docker_args=(scan "${{ inputs.target-url }}" --sarif)
         if [ -n "${{ inputs.fail-on }}" ]; then
-          FAIL_ARGS="--fail-on ${{ inputs.fail-on }}"
+          docker_args+=(--fail-on "${{ inputs.fail-on }}")
         fi
-        docker run --rm vigilo-cli scan "${{ inputs.target-url }}" --sarif $FAIL_ARGS \
-          > vigilo-results.sarif
+        docker run --rm vigilo-cli "${docker_args[@]}" > vigilo-results.sarif
         echo "exit-code=$?" >> "$GITHUB_OUTPUT"
         echo "sarif-file=vigilo-results.sarif" >> "$GITHUB_OUTPUT"
 
