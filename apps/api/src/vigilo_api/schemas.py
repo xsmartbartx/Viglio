@@ -150,6 +150,7 @@ class ReportFindingResponse(BaseModel):
     references: list[str]
     evidence: EvidenceResponse | None
     fingerprint: str
+    suppressed: bool = False
 
 
 class ScanReportResponse(BaseModel):

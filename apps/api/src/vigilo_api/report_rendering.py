@@ -6,6 +6,7 @@ findings into the same `ScanReportResponse` shape.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +17,7 @@ from vigilo_core.models import Finding, Score
 from vigilo_identity.repository import get_account_by_id, get_branding_profile
 from vigilo_orchestrator.models import Scan
 from vigilo_orchestrator.remediation import get_remediations_for_findings
-from vigilo_project.repository import get_project, get_target
+from vigilo_project.repository import get_project, get_suppressed_fingerprints_for_target, get_target
 from vigilo_reporting import build_report
 
 MANIFESTS_BY_CHECK_ID = {check.manifest.check_id: check.manifest for check in REGISTRY}
@@ -52,7 +53,11 @@ async def get_branding_for_target(
 
 
 async def render_scan_report(
-    session: AsyncSession, target_origin: str, scan: Scan, findings: list[Finding]
+    session: AsyncSession,
+    target_origin: str,
+    scan: Scan,
+    findings: list[Finding],
+    target_id: uuid.UUID | None = None,
 ) -> ScanReportResponse:
     score = Score(
         value=scan.score,
@@ -64,8 +69,19 @@ async def render_scan_report(
     # calls the LLM itself, so a report render stays fast and available
     # regardless of provider latency (docs/adr/ADR-0004-llm-boundary.md).
     remediations = await get_remediations_for_findings(session, findings, scan.registry_version)
+    suppressed_fingerprints = frozenset()
+    if target_id is not None:
+        suppressed_fingerprints = await get_suppressed_fingerprints_for_target(
+            session, target_id, datetime.now(UTC)
+        )
     document = build_report(
-        target_origin, score, findings, MANIFESTS_BY_CHECK_ID, scan.created_at, remediations
+        target_origin,
+        score,
+        findings,
+        MANIFESTS_BY_CHECK_ID,
+        scan.created_at,
+        remediations,
+        suppressed_fingerprints,
     )
     # `document.findings` are `vigilo_reporting.models.ReportFinding` instances,
     # a distinct class from this app's own `ReportFindingResponse` even though

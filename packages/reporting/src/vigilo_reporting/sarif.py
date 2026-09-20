@@ -104,8 +104,20 @@ def build_sarif_report(
     target_origin: str,
     findings: list[Finding],
     manifests_by_check_id: dict[str, CheckManifest],
+    suppressed_fingerprints: frozenset[str] | None = None,
 ) -> dict:
-    reportable = [f for f in findings if f.verdict in (Verdict.FAILED, Verdict.INCONCLUSIVE)]
+    """Suppressed findings (post-Phase-9's workflow, `packages/project`)
+    are excluded from `results` entirely, not merely marked — GitHub Code
+    Scanning already has its own per-alert dismissal workflow, and a
+    finding that stops being reported here reads to GitHub as resolved,
+    the correct complementary behavior rather than re-asserting a result
+    GitHub would just re-open (docs/build-roadmap.md's post-Phase-9 entry)."""
+    suppressed = suppressed_fingerprints or frozenset()
+    reportable = [
+        f
+        for f in findings
+        if f.verdict in (Verdict.FAILED, Verdict.INCONCLUSIVE) and f.fingerprint not in suppressed
+    ]
     manifests_used = {
         manifests_by_check_id[finding.check_id].check_id: manifests_by_check_id[finding.check_id]
         for finding in reportable

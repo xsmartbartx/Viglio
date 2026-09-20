@@ -43,7 +43,11 @@ from vigilo_orchestrator.service import (
     list_scans_for_target,
 )
 from vigilo_persistence import session_scope
-from vigilo_project.repository import get_target, has_valid_ownership_proof
+from vigilo_project.repository import (
+    get_suppressed_fingerprints_for_target,
+    get_target,
+    has_valid_ownership_proof,
+)
 from vigilo_security.audit import AuditEvent, audit
 from vigilo_security.authorization import AuthorizationRequest, resolve_authorization
 
@@ -164,6 +168,9 @@ async def detect_regression_job(ctx: dict[str, Any], scan_job_id: str) -> None:
         ever_failed_before_previous = await list_ever_failed_fingerprints_before(
             session, scan.target_id, previous_scan.created_at
         )
+        suppressed_fingerprints = await get_suppressed_fingerprints_for_target(
+            session, scan.target_id, datetime.now(UTC)
+        )
 
         report = detect_regression(
             previous_failed=previous_failed,
@@ -174,6 +181,7 @@ async def detect_regression_job(ctx: dict[str, Any], scan_job_id: str) -> None:
             previous_score=previous_scan.score,
             current_score=current_scan.score,
             had_pending_score_drop=monitor.pending_score_drop,
+            suppressed_fingerprints=suppressed_fingerprints,
         )
 
         target = await get_target(session, scan.target_id)

@@ -62,6 +62,10 @@ class ReportFinding(BaseModel):
     references: list[str]
     evidence: EvidenceView | None
     fingerprint: str
+    # True when the target owner has accepted this finding as a known risk
+    # (post-Phase-9's suppression workflow, docs/build-roadmap.md). Never
+    # changes score/grade — presentation only, per that entry's reasoning.
+    suppressed: bool = False
 
 
 class ReportDocument(BaseModel):
