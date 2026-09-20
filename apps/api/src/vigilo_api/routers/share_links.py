@@ -148,7 +148,9 @@ async def resolve_share(token: str, session: SessionDep) -> ScanReportResponse:
 
     target = await get_target(session, scan.target_id)
     findings = await get_findings_for_scan(session, scan.id)
-    response = await render_scan_report(session, target.origin if target else "", scan, findings)
+    response = await render_scan_report(
+        session, target.origin if target else "", scan, findings, target.id if target else None
+    )
     response.branding = await get_branding_for_target(session, scan.target_id)
 
     await record_share_link_view(session, link.id)

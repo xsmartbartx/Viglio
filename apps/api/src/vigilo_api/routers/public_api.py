@@ -298,7 +298,9 @@ async def public_get_scan_report(
 
     target = await get_target(session, job.target_id)
     findings = await get_findings_for_scan(session, scan.id)
-    response = await render_scan_report(session, target.origin if target else "", scan, findings)
+    response = await render_scan_report(
+        session, target.origin if target else "", scan, findings, target.id if target else None
+    )
     response.scan_job_id = scan_job_id
     response.target_id = job.target_id
     response.is_owner = True
