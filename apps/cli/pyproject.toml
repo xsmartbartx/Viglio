@@ -10,6 +10,7 @@ dependencies = [
     "vigilo-probes",
     "vigilo-checks",
     "vigilo-scoring",
+    "vigilo-reporting",
 ]
 
 [project.scripts]
@@ -21,6 +22,7 @@ vigilo-security = { workspace = true }
 vigilo-probes = { workspace = true }
 vigilo-checks = { workspace = true }
 vigilo-scoring = { workspace = true }
+vigilo-reporting = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

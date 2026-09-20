@@ -73,20 +73,20 @@ def test_inconclusive_findings_are_surfaced_as_a_note_not_hidden():
 
 def test_failed_severity_maps_to_the_right_sarif_level():
     findings = [
-        _finding("VG-A-001", Verdict.FAILED, severity=Severity.CRITICAL),
-        _finding("VG-A-002", Verdict.FAILED, severity=Severity.MEDIUM),
-        _finding("VG-A-003", Verdict.FAILED, severity=Severity.LOW),
+        _finding("VG-AA-001", Verdict.FAILED, severity=Severity.CRITICAL),
+        _finding("VG-AA-002", Verdict.FAILED, severity=Severity.MEDIUM),
+        _finding("VG-AA-003", Verdict.FAILED, severity=Severity.LOW),
     ]
     manifests = {
-        "VG-A-001": _manifest("VG-A-001", severity=Severity.CRITICAL),
-        "VG-A-002": _manifest("VG-A-002", severity=Severity.MEDIUM),
-        "VG-A-003": _manifest("VG-A-003", severity=Severity.LOW),
+        "VG-AA-001": _manifest("VG-AA-001", severity=Severity.CRITICAL),
+        "VG-AA-002": _manifest("VG-AA-002", severity=Severity.MEDIUM),
+        "VG-AA-003": _manifest("VG-AA-003", severity=Severity.LOW),
     }
 
     report = build_sarif_report("https://example.com", findings, manifests)
     levels = {r["ruleId"]: r["level"] for r in report["runs"][0]["results"]}
 
-    assert levels == {"VG-A-001": "error", "VG-A-002": "warning", "VG-A-003": "note"}
+    assert levels == {"VG-AA-001": "error", "VG-AA-002": "warning", "VG-AA-003": "note"}
 
 
 def test_rule_carries_cwe_tag_when_the_manifest_has_one():

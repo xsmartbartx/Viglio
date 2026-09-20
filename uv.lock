@@ -1656,6 +1656,7 @@ dependencies = [
     { name = "vigilo-checks" },
     { name = "vigilo-core" },
     { name = "vigilo-probes" },
+    { name = "vigilo-reporting" },
     { name = "vigilo-scoring" },
     { name = "vigilo-security" },
 ]
@@ -1665,6 +1666,7 @@ requires-dist = [
     { name = "vigilo-checks", editable = "packages/checks" },
     { name = "vigilo-core", editable = "packages/core" },
     { name = "vigilo-probes", editable = "packages/probes" },
+    { name = "vigilo-reporting", editable = "packages/reporting" },
     { name = "vigilo-scoring", editable = "packages/scoring" },
     { name = "vigilo-security", editable = "packages/security" },
 ]
