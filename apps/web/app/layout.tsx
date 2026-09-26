@@ -19,9 +19,37 @@ export const metadata: Metadata = {
   description: brand.shortDescription,
 };
 
+// The Clerk application can be shared with other products (its own name
+// would otherwise appear as "Sign in to <that app>"), so every string that
+// interpolates {{applicationName}} is overridden with this brand's name.
+const continueTo = `to continue to ${brand.name}`;
+const clerkLocalization = {
+  signIn: {
+    start: {
+      title: `Sign in to ${brand.name}`,
+      titleCombined: `Continue to ${brand.name}`,
+      alternativePhoneCodeProvider: { title: `Sign in to ${brand.name} with {{provider}}` },
+    },
+    alternativePhoneCodeProvider: { subtitle: continueTo },
+    emailCode: { subtitle: continueTo },
+    emailCodeMfa: { subtitle: continueTo },
+    emailLink: { subtitle: continueTo },
+    emailLinkMfa: { subtitle: continueTo },
+    phoneCode: { subtitle: continueTo },
+    ssoBypass: { code: { subtitle: continueTo } },
+  },
+  signUp: {
+    start: {
+      alternativePhoneCodeProvider: { title: `Sign up to ${brand.name} with {{provider}}` },
+    },
+    emailLink: { subtitle: continueTo },
+  },
+  organizationList: { subtitle: continueTo },
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <ClerkProvider>
+    <ClerkProvider localization={clerkLocalization}>
       <html
         lang="en"
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
