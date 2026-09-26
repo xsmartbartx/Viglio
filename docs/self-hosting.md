@@ -121,6 +121,34 @@ up to a minute while Caddy requests its initial certificates from Let's
 Encrypt; watch progress with `docker compose -f docker-compose.self-host.yml
 logs -f caddy`.
 
+## Behind an existing reverse proxy
+
+If the VPS already runs a reverse proxy on `80`/`443` (for example one
+shared by several projects on the same machine), the bundled `caddy`
+can't bind those ports, and `up` fails before `scripts/deploy.sh` reaches
+the migration step. Turn it off by adding this to `.env`:
+
+```bash
+COMPOSE_FILE=docker-compose.self-host.yml:docker-compose.external-proxy.yml
+```
+
+[`docker-compose.external-proxy.yml`](../docker-compose.external-proxy.yml)
+moves `caddy` behind an opt-in profile, so it never starts. Compose reads
+`COMPOSE_FILE` from `.env` by itself, so plain `docker compose ...`
+commands and `./scripts/deploy.sh` both pick it up; `WEB_DOMAIN`,
+`API_DOMAIN`, and `EXTRA_WEB_DOMAIN` then go unused.
+
+Your proxy has to reach `web` on port `3000` and `api` on port `8000`:
+join it to the `vigilo-self-host_default` Docker network and proxy to the
+containers by name (`vigilo-self-host-web-1`, `vigilo-self-host-api-1`).
+Use those full container names rather than `web`/`api` if the proxy also
+joins other projects' networks, since another project may have a service
+with the same short name. TLS certificates, and adding hostnames for white-labeled
+report domains (below), are then that proxy's job, not this `Caddyfile`'s.
+
+`WEB_APP_URL`, `PUBLIC_API_BASE_URL`, and `ADDITIONAL_CORS_ORIGINS` still
+need the public `https://` origins your proxy serves.
+
 ## Updating
 
 ```bash

@@ -1,0 +1,17 @@
+# Override for hosts where something else already terminates TLS on
+# 80/443 (e.g. a shared reverse proxy fronting several projects on one VM).
+# Layered on top of docker-compose.self-host.yml, it moves the bundled
+# `caddy` service behind an opt-in profile, so `up` never starts it and
+# never tries to bind ports another process holds.
+#
+# Enable it by adding this line to .env (Compose and scripts/deploy.sh both
+# read it):
+#   COMPOSE_FILE=docker-compose.self-host.yml:docker-compose.external-proxy.yml
+#
+# The external proxy then needs to reach `web` (port 3000) and `api` (port
+# 8000) itself, e.g. by joining the `vigilo-self-host_default` network.
+# See docs/self-hosting.md's "Behind an existing reverse proxy".
+
+services:
+  caddy:
+    profiles: ["bundled-proxy"]
