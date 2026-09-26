@@ -110,6 +110,7 @@ services:
       POSTMARK_SERVER_TOKEN: ${POSTMARK_SERVER_TOKEN:-}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-scans@vigilo.io}
       WEB_APP_URL: ${WEB_APP_URL:-http://localhost:3000}
+      ADDITIONAL_CORS_ORIGINS: ${ADDITIONAL_CORS_ORIGINS:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5}
       PADDLE_VENDOR_ID: ${PADDLE_VENDOR_ID:-}
@@ -179,6 +180,7 @@ services:
     environment:
       WEB_DOMAIN: ${WEB_DOMAIN:-}
       API_DOMAIN: ${API_DOMAIN:-}
+      EXTRA_WEB_DOMAIN: ${EXTRA_WEB_DOMAIN:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - vigilo_self_host_caddy_data:/data
