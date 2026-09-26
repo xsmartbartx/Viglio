@@ -37,7 +37,7 @@ _web_app_url = config().web_app_url
 if _web_app_url:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[_web_app_url],
+        allow_origins=[_web_app_url, *config().additional_cors_origins],
         allow_methods=["*"],
         allow_headers=["*"],
     )
