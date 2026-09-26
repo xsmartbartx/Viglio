@@ -68,6 +68,11 @@ class Config(BaseModel):
     postmark_server_token: str | None = None
     mail_from_address: str | None = None
     web_app_url: str | None = None
+    # Extra origins allowed to call the API beyond web_app_url itself (e.g.
+    # apps/web served under a second, brand-owned domain alongside its
+    # primary one) — CORS only, never used as the PDF-render navigation
+    # target web_app_url is.
+    additional_cors_origins: list[str] = []
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-haiku-4-5"
     paddle_vendor_id: str | None = None
@@ -130,6 +135,11 @@ def config() -> Config:
         postmark_server_token=os.environ.get("POSTMARK_SERVER_TOKEN"),
         mail_from_address=os.environ.get("MAIL_FROM_ADDRESS"),
         web_app_url=os.environ.get("WEB_APP_URL"),
+        additional_cors_origins=[
+            origin.strip()
+            for origin in os.environ.get("ADDITIONAL_CORS_ORIGINS", "").split(",")
+            if origin.strip()
+        ],
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY"),
         anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5"),
         paddle_vendor_id=os.environ.get("PADDLE_VENDOR_ID"),

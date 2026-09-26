@@ -4,8 +4,13 @@
 # automatically — no separate certbot/TLS config needed. Talks to `web`/
 # `api` by their compose service names, over the internal Docker network,
 # never through a published host port.
+#
+# EXTRA_WEB_DOMAIN is optional — a second brand-owned domain serving the
+# same `web` container (e.g. a product subdomain of a parent company site
+# alongside the deployment's own domain). Leave unset for a single-domain
+# deployment; an empty placeholder here just drops out of the address list.
 
-{$WEB_DOMAIN} {
+{$WEB_DOMAIN} {$EXTRA_WEB_DOMAIN} {
 	reverse_proxy web:3000
 }
 
